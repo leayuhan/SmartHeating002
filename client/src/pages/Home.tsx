@@ -1368,8 +1368,31 @@ export default function Home() {
         </div>
 
         {/* Center: Map */}
-        <div className={`flex-1 overflow-visible relative mobile-tab-content ${mobileTab === "map" ? "mobile-tab-active" : ""}`} style={{ paddingBottom: 72 }}>
-
+          <div
+            className={`flex-1 overflow-visible relative mobile-tab-content ${mobileTab === "map" ? "mobile-tab-active" : ""}`}
+            style={{
+              paddingBottom: 72,
+              backgroundImage: `
+                linear-gradient(rgba(4, 10, 20, 0.76), rgba(3, 8, 18, 0.90)),
+                url('/bg-city.png')
+              `,
+              backgroundSize: "cover",
+              backgroundPosition: "center",
+              backgroundRepeat: "no-repeat",
+            }}
+          >
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                pointerEvents: "none",
+                background: `
+                  radial-gradient(circle at 50% 20%, rgba(0, 234, 255, 0.12), transparent 30%),
+                  linear-gradient(180deg, rgba(6, 18, 35, 0.18), rgba(4, 10, 20, 0.42))
+                `,
+                zIndex: 0,
+              }}
+            />
           {/* ── 焦点遣罩（预警/诊断阶段） ── */}
           {showFocusMask && (
             <div style={{
