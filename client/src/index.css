@@ -4,25 +4,63 @@
 @custom-variant dark (&:is(.dark *));
 
 /* ============================================================
-   SMART HEATING DEMO — LIGHT TECH DESIGN SYSTEM
-   Philosophy: Clean white base + precision blue data lines
-   Reference: Apple/Tesla style — bright, airy, data-forward
-   Colors:
-     Background:   #F0F4F8 (cool light gray)
-     Surface:      #FFFFFF (pure white cards)
-     Primary:      #1A56DB (tech blue)
-     Accent:       #0891B2 (data cyan)
-     Warm:         #D97706 (heat orange)
-     Danger:       #DC2626 (alert red)
-     Success:      #059669 (safe green)
-     Text:         #111827 / #374151 / #6B7280
+   SMART HEATING — NEON DARK DESIGN SYSTEM
+   Philosophy: Deep blue base + icy cyan glow + glass panels
    ============================================================ */
+
+:root {
+  --radius: 0.75rem;
+
+  --background: #07111e;
+  --foreground: #dff8ff;
+
+  --card: rgba(8, 20, 38, 0.82);
+  --card-foreground: #eafcff;
+
+  --popover: rgba(8, 20, 38, 0.94);
+  --popover-foreground: #eafcff;
+
+  --primary: #00eaff;
+  --primary-foreground: #03121e;
+
+  --secondary: rgba(255,255,255,0.06);
+  --secondary-foreground: #d8f6ff;
+
+  --muted: rgba(255,255,255,0.05);
+  --muted-foreground: rgba(173, 233, 255, 0.66);
+
+  --accent: #4db8ff;
+  --accent-foreground: #03121e;
+
+  --destructive: #ff6487;
+  --destructive-foreground: #ffffff;
+
+  --border: rgba(0, 234, 255, 0.16);
+  --input: rgba(255,255,255,0.06);
+  --ring: rgba(0, 234, 255, 0.36);
+
+  --chart-1: #00eaff;
+  --chart-2: #5bc0ff;
+  --chart-3: #7cf8c8;
+  --chart-4: #ffb76b;
+  --chart-5: #ff6487;
+
+  --sidebar: rgba(8, 20, 38, 0.88);
+  --sidebar-foreground: #dff8ff;
+  --sidebar-primary: #00eaff;
+  --sidebar-primary-foreground: #03121e;
+  --sidebar-accent: rgba(255,255,255,0.06);
+  --sidebar-accent-foreground: #dff8ff;
+  --sidebar-border: rgba(0, 234, 255, 0.14);
+  --sidebar-ring: rgba(0, 234, 255, 0.36);
+}
 
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -57,76 +95,101 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
-:root {
-  --radius: 0.5rem;
-  --background: oklch(0.97 0.005 230);
-  --foreground: oklch(0.15 0.01 240);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.15 0.01 240);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.15 0.01 240);
-  --primary: oklch(0.46 0.18 255);
-  --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.94 0.01 230);
-  --secondary-foreground: oklch(0.3 0.02 240);
-  --muted: oklch(0.93 0.008 230);
-  --muted-foreground: oklch(0.55 0.015 240);
-  --accent: oklch(0.55 0.15 200);
-  --accent-foreground: oklch(1 0 0);
-  --destructive: oklch(0.55 0.22 25);
-  --destructive-foreground: oklch(1 0 0);
-  --border: oklch(0.88 0.01 230);
-  --input: oklch(0.88 0.01 230);
-  --ring: oklch(0.46 0.18 255);
-  --chart-1: oklch(0.46 0.18 255);
-  --chart-2: oklch(0.55 0.15 200);
-  --chart-3: oklch(0.65 0.18 50);
-  --chart-4: oklch(0.55 0.22 25);
-  --chart-5: oklch(0.59 0.18 145);
-  --sidebar: oklch(1 0 0);
-  --sidebar-foreground: oklch(0.15 0.01 240);
-  --sidebar-primary: oklch(0.46 0.18 255);
-  --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent: oklch(0.94 0.01 230);
-  --sidebar-accent-foreground: oklch(0.15 0.01 240);
-  --sidebar-border: oklch(0.88 0.01 230);
-  --sidebar-ring: oklch(0.46 0.18 255);
-}
-
 @layer base {
-  * { @apply border-border outline-ring/50; }
+  * {
+    @apply border-border outline-ring/50;
+    box-sizing: border-box;
+  }
+
+  html,
+  body,
+  #root {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 50% 14%, rgba(0, 234, 255, 0.14), transparent 28%),
+      radial-gradient(circle at 84% 18%, rgba(78, 125, 255, 0.10), transparent 24%),
+      radial-gradient(circle at 18% 82%, rgba(0, 234, 255, 0.08), transparent 22%),
+      linear-gradient(180deg, #0b1d33 0%, #07111e 45%, #040a14 100%);
+    color: var(--foreground);
+    font-family: "Inter", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
   body {
     @apply bg-background text-foreground;
-    font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
-    -webkit-font-smoothing: antialiased;
   }
-  button:not(:disabled), [role="button"]:not([aria-disabled="true"]),
-  [type="button"]:not(:disabled), [type="submit"]:not(:disabled),
-  a[href], select:not(:disabled) { @apply cursor-pointer; }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [type="button"]:not(:disabled),
+  [type="submit"]:not(:disabled),
+  a[href],
+  select:not(:disabled) {
+    cursor: pointer;
+  }
+
+  img,
+  svg,
+  canvas {
+    user-select: none;
+  }
 }
 
 @layer components {
   .container {
-    width: 100%; margin-left: auto; margin-right: auto;
-    padding-left: 1rem; padding-right: 1rem;
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 1rem;
+    padding-right: 1rem;
   }
-  .flex { min-height: 0; min-width: 0; }
-  @media (min-width: 640px) { .container { padding-left: 1.5rem; padding-right: 1.5rem; } }
-  @media (min-width: 1024px) { .container { padding-left: 2rem; padding-right: 2rem; max-width: 1280px; } }
+
+  .flex {
+    min-width: 0;
+    min-height: 0;
+  }
+
+  @media (min-width: 640px) {
+    .container {
+      padding-left: 1.5rem;
+      padding-right: 1.5rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .container {
+      max-width: 1280px;
+      padding-left: 2rem;
+      padding-right: 2rem;
+    }
+  }
 }
 
 /* ============================================================
-   APP SHELL
+   APP SHELL / GLOBAL LAYOUT
    ============================================================ */
+
 .app-shell {
   display: flex;
   flex-direction: column;
   height: 100vh;
   overflow: hidden;
-  background: #EEF2F7;
-  background-image:
-    radial-gradient(circle at 20% 20%, rgba(26, 86, 219, 0.04) 0%, transparent 50%),
-    radial-gradient(circle at 80% 80%, rgba(8, 145, 178, 0.04) 0%, transparent 50%);
+  background:
+    radial-gradient(circle at 50% 14%, rgba(0, 234, 255, 0.12), transparent 28%),
+    radial-gradient(circle at 82% 18%, rgba(65, 135, 255, 0.10), transparent 24%),
+    linear-gradient(180deg, #0b1d33 0%, #07111e 44%, #040a14 100%);
 }
 
 .main-content {
@@ -134,114 +197,118 @@
   flex: 1;
   overflow: hidden;
   gap: 0;
+  min-height: 0;
 }
 
 /* ============================================================
    TOP HEADER
    ============================================================ */
+
 .top-header {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 0 20px;
+  padding: 0 18px;
   height: 56px;
-  background: #FFFFFF;
-  border-bottom: 1px solid #E2E8F0;
-  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.06);
   flex-shrink: 0;
-  z-index: 100;
   position: relative;
+  z-index: 100;
+  background: linear-gradient(180deg, rgba(6, 18, 35, 0.96), rgba(5, 15, 28, 0.90));
+  border-bottom: 1px solid rgba(0, 234, 255, 0.14);
+  box-shadow:
+    0 10px 32px rgba(0, 0, 0, 0.22),
+    inset 0 -1px 0 rgba(0, 234, 255, 0.10);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
 }
 
 .top-header::after {
-  content: '';
+  content: "";
   position: absolute;
+  left: 12px;
+  right: 12px;
   bottom: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: linear-gradient(90deg, #1A56DB 0%, #0891B2 50%, #1A56DB 100%);
-  opacity: 0.6;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(0, 234, 255, 0.18) 20%,
+    rgba(0, 234, 255, 0.55) 50%,
+    rgba(0, 234, 255, 0.18) 80%,
+    transparent 100%
+  );
+  pointer-events: none;
 }
 
 .header-logo {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-shrink: 0;
-}
-
-.header-logo-icon {
   width: 34px;
   height: 34px;
-  background: linear-gradient(135deg, #1A56DB, #0891B2);
-  border-radius: 8px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(10, 34, 78, 0.95), rgba(22, 72, 138, 0.85));
+  border: 1px solid rgba(0, 234, 255, 0.28);
+  box-shadow:
+    0 0 16px rgba(0, 234, 255, 0.18),
+    inset 0 1px 0 rgba(255,255,255,0.08);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
-  box-shadow: 0 2px 8px rgba(26, 86, 219, 0.3);
+  color: #8cf6ff;
+  flex-shrink: 0;
 }
 
 .header-title {
-  font-size: 14px;
-  font-weight: 700;
-  color: #111827;
+  font-size: 15px;
+  font-weight: 800;
+  color: #e7fcff;
   letter-spacing: 0.02em;
-  line-height: 1.2;
+  line-height: 1.15;
+  text-shadow: 0 0 16px rgba(0, 234, 255, 0.18);
 }
 
 .header-subtitle {
-  font-size: 8px;
-  color: #9CA3AF;
-  letter-spacing: 0.08em;
-  font-family: 'Share Tech Mono', monospace;
+  font-size: 9px;
+  color: rgba(143, 224, 255, 0.55);
+  letter-spacing: 0.14em;
+  font-family: "Share Tech Mono", monospace;
   line-height: 1;
+  text-transform: uppercase;
 }
 
 .header-divider {
   width: 1px;
   height: 28px;
-  background: #E2E8F0;
+  background: linear-gradient(180deg, transparent, rgba(0,234,255,0.18), transparent);
   flex-shrink: 0;
 }
 
-.header-weather-segment {
+.header-weather-segment,
+.forecast-strip {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 10px;
-  background: #F8FAFC;
-  border: 1px solid #E2E8F0;
-  border-radius: 6px;
-  flex-shrink: 0;
+  padding: 5px 10px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(0, 234, 255, 0.10);
+  border-radius: 8px;
+  color: #d8f8ff;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
 }
 
 .header-weather-label {
   font-size: 8px;
-  color: #9CA3AF;
-  letter-spacing: 0.05em;
+  color: rgba(146, 217, 255, 0.52);
+  letter-spacing: 0.08em;
   line-height: 1;
-  font-family: 'Share Tech Mono', monospace;
+  font-family: "Share Tech Mono", monospace;
+  text-transform: uppercase;
 }
 
 .header-weather-value {
   font-size: 13px;
   font-weight: 700;
-  color: #111827;
+  color: #ecfcff;
   line-height: 1.2;
-  font-family: 'Share Tech Mono', monospace;
-}
-
-/* Forecast strip */
-.forecast-strip {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  background: #F8FAFC;
-  border: 1px solid #E2E8F0;
-  border-radius: 6px;
+  font-family: "Share Tech Mono", monospace;
 }
 
 .forecast-item {
@@ -254,217 +321,177 @@
 
 .forecast-hour {
   font-size: 7px;
-  color: #9CA3AF;
-  font-family: 'Share Tech Mono', monospace;
+  color: rgba(146, 217, 255, 0.48);
+  font-family: "Share Tech Mono", monospace;
 }
 
-.forecast-icon { font-size: 10px; }
+.forecast-icon {
+  font-size: 10px;
+}
 
 .forecast-temp {
   font-size: 9px;
   font-weight: 700;
-  font-family: 'Share Tech Mono', monospace;
-  color: #1A56DB;
+  font-family: "Share Tech Mono", monospace;
+  color: #7fefff;
 }
 
-/* Weather mode buttons */
 .weather-mode-btn {
   padding: 4px 10px;
-  border-radius: 5px;
+  border-radius: 7px;
   font-size: 10px;
-  font-weight: 600;
-  border: 1px solid #E2E8F0;
-  background: #F8FAFC;
-  color: #6B7280;
-  transition: all 0.15s;
+  font-weight: 700;
+  border: 1px solid rgba(0,234,255,0.10);
+  background: rgba(255,255,255,0.04);
+  color: rgba(195, 241, 255, 0.76);
+  transition: all 0.18s ease;
   white-space: nowrap;
 }
 
-.weather-mode-btn:hover {
-  background: #EEF2FF;
-  border-color: #1A56DB;
-  color: #1A56DB;
-}
-
-.weather-mode-btn.selected {
-  background: #1A56DB;
-  border-color: #1A56DB;
-  color: #FFFFFF;
-  box-shadow: 0 2px 6px rgba(26, 86, 219, 0.3);
-}
-
-.weather-mode-btn.unselected {
-  background: #F8FAFC;
-  border-color: #E2E8F0;
-  color: #6B7280;
-}
-
-/* Demo mode toggle button */
-.demo-mode-btn {
-  padding: 5px 12px;
-  border-radius: 5px;
-  font-size: 10px;
-  font-weight: 600;
-  border: 1px solid;
-  transition: all 0.15s;
-  white-space: nowrap;
-  flex-shrink: 0;
-  font-family: 'Noto Sans SC', sans-serif;
-}
-
-.demo-mode-btn.active {
-  background: #EEF2FF;
-  border-color: #1A56DB;
-  color: #1A56DB;
-}
-
-.demo-mode-btn.inactive {
-  background: #F8FAFC;
-  border-color: #E2E8F0;
-  color: #6B7280;
-}
-
-.demo-mode-btn:hover {
-  background: #EEF2FF;
-  border-color: #1A56DB;
-  color: #1A56DB;
+.weather-mode-btn:hover,
+.weather-mode-btn.is-active {
+  background: linear-gradient(180deg, rgba(0,234,255,0.16), rgba(0,110,200,0.10));
+  border-color: rgba(0,234,255,0.30);
+  color: #00eaff;
+  box-shadow: 0 0 14px rgba(0, 234, 255, 0.12);
 }
 
 /* ============================================================
-   SIDE PANELS
+   LEFT / RIGHT PANELS
    ============================================================ */
-.left-panel {
-  width: 300px;
-  flex-shrink: 0;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  background: #FFFFFF;
-  border-right: 1px solid #E2E8F0;
-  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.04);
+
+.side-panel,
+.panel,
+.glass-panel {
+  background:
+    linear-gradient(180deg, rgba(10, 24, 46, 0.84), rgba(5, 16, 30, 0.72));
+  border: 1px solid rgba(0, 234, 255, 0.12);
+  border-radius: 18px;
+  box-shadow:
+    0 0 22px rgba(0, 234, 255, 0.08),
+    0 14px 30px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255,255,255,0.05);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  color: #def9ff;
 }
 
-.right-panel {
-  width: 340px;
-  flex-shrink: 0;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  background: #FFFFFF;
-  border-left: 1px solid #E2E8F0;
-  box-shadow: -2px 0 8px rgba(0, 0, 0, 0.04);
-}
-
-/* ============================================================
-   PANEL COMPONENTS
-   ============================================================ */
 .panel-header {
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid rgba(0, 234, 255, 0.10);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
-  border-bottom: 1px solid #E2E8F0;
-  background: #FFFFFF;
-  flex-shrink: 0;
+  gap: 8px;
 }
 
 .panel-title {
-  font-size: 12px;
-  font-weight: 700;
-  color: #111827;
-  letter-spacing: 0.03em;
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #ecfcff;
+  letter-spacing: 0.02em;
 }
 
-.panel-title-accent {
-  width: 3px;
-  height: 14px;
-  background: linear-gradient(180deg, #1A56DB, #0891B2);
-  border-radius: 2px;
+.panel-subtitle {
+  font-size: 9px;
+  color: rgba(137, 220, 255, 0.56);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-family: "Share Tech Mono", monospace;
 }
 
 .panel-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 12px;
-  scrollbar-width: thin;
-  scrollbar-color: #E2E8F0 transparent;
+  padding: 12px 14px 14px;
+  overflow: auto;
+  min-height: 0;
 }
 
-.panel-body::-webkit-scrollbar { width: 4px; }
-.panel-body::-webkit-scrollbar-track { background: transparent; }
-.panel-body::-webkit-scrollbar-thumb { background: #E2E8F0; border-radius: 2px; }
+.panel-body::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
 
-/* Data card */
+.panel-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.panel-body::-webkit-scrollbar-thumb {
+  background: rgba(0, 234, 255, 0.16);
+  border-radius: 999px;
+}
+
+/* ============================================================
+   DATA CARDS / ALERTS
+   ============================================================ */
+
 .data-card {
-  background: #F8FAFC;
-  border: 1px solid #E2E8F0;
-  border-radius: 8px;
+  background: rgba(255,255,255,0.045);
+  border: 1px solid rgba(0, 234, 255, 0.08);
+  border-radius: 12px;
   padding: 10px 12px;
   margin-bottom: 8px;
+  transition: all 0.18s ease;
 }
 
 .data-card:hover {
-  border-color: #BFDBFE;
-  background: #EFF6FF;
+  border-color: rgba(0, 234, 255, 0.22);
+  background: rgba(255,255,255,0.065);
+  box-shadow: 0 0 16px rgba(0, 234, 255, 0.08);
 }
 
 .data-card-title {
   font-size: 10px;
-  color: #9CA3AF;
-  font-family: 'Share Tech Mono', monospace;
-  letter-spacing: 0.05em;
+  color: rgba(146, 217, 255, 0.54);
+  font-family: "Share Tech Mono", monospace;
+  letter-spacing: 0.06em;
   margin-bottom: 4px;
+  text-transform: uppercase;
 }
 
 .data-card-value {
   font-size: 20px;
   font-weight: 800;
-  color: #111827;
-  font-family: 'Share Tech Mono', monospace;
+  color: #f0fdff;
+  font-family: "Share Tech Mono", monospace;
   line-height: 1;
 }
 
 .data-card-unit {
   font-size: 11px;
-  color: #6B7280;
-  font-weight: 400;
+  color: rgba(180, 235, 255, 0.58);
+  font-weight: 500;
   margin-left: 2px;
 }
 
-/* Alert items */
 .alert-item {
   display: flex;
   align-items: flex-start;
   gap: 8px;
   padding: 8px 10px;
-  border-radius: 6px;
+  border-radius: 10px;
   margin-bottom: 6px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all 0.18s ease;
   border: 1px solid transparent;
 }
 
 .alert-item:hover {
-  border-color: #BFDBFE;
-  background: #EFF6FF;
+  transform: translateY(-1px);
 }
 
 .alert-item.danger {
-  background: #FEF2F2;
-  border-color: #FECACA;
+  background: rgba(255, 70, 110, 0.10);
+  border-color: rgba(255, 70, 110, 0.20);
 }
 
 .alert-item.warning {
-  background: #FFFBEB;
-  border-color: #FDE68A;
+  background: rgba(255, 181, 94, 0.10);
+  border-color: rgba(255, 181, 94, 0.20);
 }
 
 .alert-item.info {
-  background: #EFF6FF;
-  border-color: #BFDBFE;
+  background: rgba(0, 234, 255, 0.08);
+  border-color: rgba(0, 234, 255, 0.14);
 }
 
 .alert-dot {
@@ -475,20 +502,30 @@
   margin-top: 4px;
 }
 
-.alert-dot.danger { background: #DC2626; }
-.alert-dot.warning { background: #D97706; }
-.alert-dot.info { background: #1A56DB; }
+.alert-dot.danger {
+  background: #ff6487;
+  box-shadow: 0 0 8px rgba(255,100,135,0.65);
+}
 
-/* Section divider */
+.alert-dot.warning {
+  background: #ffb76b;
+  box-shadow: 0 0 8px rgba(255,183,107,0.65);
+}
+
+.alert-dot.info {
+  background: #00eaff;
+  box-shadow: 0 0 8px rgba(0,234,255,0.65);
+}
+
 .section-label {
   font-size: 9px;
   font-weight: 700;
-  color: #9CA3AF;
-  letter-spacing: 0.1em;
+  color: rgba(145, 220, 255, 0.54);
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  font-family: 'Share Tech Mono', monospace;
+  font-family: "Share Tech Mono", monospace;
   padding: 6px 0 4px;
-  border-bottom: 1px solid #F1F5F9;
+  border-bottom: 1px solid rgba(0, 234, 255, 0.08);
   margin-bottom: 6px;
   display: flex;
   align-items: center;
@@ -496,123 +533,233 @@
 }
 
 .section-label::after {
-  content: '';
+  content: "";
   flex: 1;
   height: 1px;
-  background: #F1F5F9;
+  background: linear-gradient(90deg, rgba(0,234,255,0.16), transparent);
 }
 
-/* Action button */
+/* ============================================================
+   BUTTONS
+   ============================================================ */
+
 .action-btn {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 5px 10px;
-  border-radius: 5px;
+  padding: 6px 10px;
+  border-radius: 8px;
   font-size: 10px;
-  font-weight: 600;
-  border: 1px solid #1A56DB;
-  background: #EFF6FF;
-  color: #1A56DB;
-  transition: all 0.15s;
+  font-weight: 700;
+  border: 1px solid rgba(0,234,255,0.22);
+  background: rgba(0,234,255,0.08);
+  color: #8ff7ff;
+  transition: all 0.18s ease;
   cursor: pointer;
 }
 
 .action-btn:hover {
-  background: #1A56DB;
-  color: #FFFFFF;
+  background: rgba(0,234,255,0.16);
+  color: #ecfdff;
+  box-shadow: 0 0 14px rgba(0,234,255,0.12);
 }
 
 .action-btn.danger {
-  border-color: #DC2626;
-  background: #FEF2F2;
-  color: #DC2626;
+  border-color: rgba(255,100,135,0.22);
+  background: rgba(255,100,135,0.10);
+  color: #ff8ba8;
 }
 
 .action-btn.danger:hover {
-  background: #DC2626;
-  color: #FFFFFF;
+  background: rgba(255,100,135,0.18);
+  color: #fff1f5;
+  box-shadow: 0 0 14px rgba(255,100,135,0.10);
 }
 
 /* ============================================================
-   HEATING SYSTEM MAP
+   MAP / SCENE
    ============================================================ */
-.map-container {
+
+.map-container,
+.scene-root,
+.scene-container {
   width: 100%;
   height: 100%;
   position: relative;
   overflow: hidden;
-  background: #F0F4F8;
 }
 
-/* ============================================================
-   TEMPERATURE BADGE
-   ============================================================ */
+.map-container {
+  background:
+    radial-gradient(circle at 50% 20%, rgba(0, 234, 255, 0.08), transparent 25%),
+    linear-gradient(180deg, rgba(8,22,42,0.92), rgba(5,12,24,0.92));
+}
+
+.scene-root::before,
+.map-container::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.16;
+  background-image:
+    linear-gradient(rgba(100,180,255,0.10) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(100,180,255,0.10) 1px, transparent 1px);
+  background-size: 42px 42px;
+  mask-image: linear-gradient(180deg, rgba(255,255,255,0.8), transparent 85%);
+}
+
 .temp-badge {
   display: inline-flex;
   align-items: center;
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: 999px;
   font-size: 10px;
   font-weight: 700;
-  font-family: 'Share Tech Mono', monospace;
+  font-family: "Share Tech Mono", monospace;
+  background: rgba(7, 18, 38, 0.70);
+  border: 1px solid rgba(0,234,255,0.16);
+  box-shadow: 0 0 10px rgba(0,234,255,0.08);
 }
 
-.temp-badge.hot { background: #FEF2F2; color: #DC2626; border: 1px solid #FECACA; }
-.temp-badge.warm { background: #FFFBEB; color: #D97706; border: 1px solid #FDE68A; }
-.temp-badge.good { background: #ECFDF5; color: #059669; border: 1px solid #A7F3D0; }
-.temp-badge.cool { background: #EFF6FF; color: #1A56DB; border: 1px solid #BFDBFE; }
-.temp-badge.cold { background: #EEF2FF; color: #4338CA; border: 1px solid #C7D2FE; }
+.temp-badge.hot {
+  color: #ff8a9e;
+  border-color: rgba(255,100,135,0.18);
+}
 
-/* ============================================================
-   PROGRESS BAR
-   ============================================================ */
+.temp-badge.warm {
+  color: #ffbf7f;
+  border-color: rgba(255,183,107,0.18);
+}
+
+.temp-badge.good {
+  color: #79f6c7;
+  border-color: rgba(121,246,199,0.18);
+}
+
+.temp-badge.cool,
+.temp-badge.cold {
+  color: #7ceeff;
+  border-color: rgba(0,234,255,0.18);
+}
+
 .progress-bar {
   width: 100%;
-  height: 4px;
-  background: #E2E8F0;
-  border-radius: 2px;
+  height: 5px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 999px;
   overflow: hidden;
 }
 
 .progress-fill {
   height: 100%;
-  border-radius: 2px;
+  border-radius: 999px;
   transition: width 0.5s ease;
+  box-shadow: 0 0 10px rgba(0,234,255,0.16);
 }
 
 /* ============================================================
-   RECHARTS OVERRIDES
+   MODAL / OVERLAY
    ============================================================ */
+
+.tech-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 8, 18, 0.62);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.tech-modal {
+  background: linear-gradient(180deg, rgba(8,20,38,0.96), rgba(6,14,28,0.94));
+  color: #eaffff;
+  border-radius: 18px;
+  border: 1px solid rgba(0,234,255,0.16);
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.35),
+    0 0 26px rgba(0,234,255,0.10);
+  max-width: 720px;
+  width: 100%;
+  max-height: 85vh;
+  overflow-y: auto;
+  animation: fade-in-up 0.25s ease;
+}
+
+.tech-modal-header {
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid rgba(0,234,255,0.10);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  background: rgba(8,20,38,0.96);
+  z-index: 1;
+}
+
+.tech-modal-body {
+  padding: 20px 24px;
+}
+
+.close-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid rgba(0,234,255,0.14);
+  background: rgba(255,255,255,0.04);
+  color: rgba(212,245,255,0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.18s ease;
+}
+
+.close-btn:hover {
+  background: rgba(255,255,255,0.08);
+  color: #f0feff;
+  box-shadow: 0 0 12px rgba(0,234,255,0.10);
+}
+
+/* ============================================================
+   RECHARTS
+   ============================================================ */
+
 .recharts-tooltip-wrapper .recharts-default-tooltip {
-  background: #FFFFFF !important;
-  border: 1px solid #E2E8F0 !important;
-  border-radius: 6px !important;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
+  background: rgba(7, 18, 38, 0.96) !important;
+  border: 1px solid rgba(0, 234, 255, 0.16) !important;
+  border-radius: 10px !important;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.24) !important;
   font-size: 11px !important;
+  color: #e8fdff !important;
 }
 
 /* ============================================================
    ANIMATIONS
    ============================================================ */
+
 @keyframes slide-in-right {
   from { transform: translateX(100%); opacity: 0; }
-  to   { transform: translateX(0);    opacity: 1; }
+  to   { transform: translateX(0); opacity: 1; }
 }
 
 @keyframes slide-in-left {
   from { transform: translateX(-100%); opacity: 0; }
-  to   { transform: translateX(0);     opacity: 1; }
+  to   { transform: translateX(0); opacity: 1; }
 }
 
 @keyframes fade-in-up {
-  from { transform: translateY(8px); opacity: 0; }
-  to   { transform: translateY(0);   opacity: 1; }
+  from { transform: translateY(10px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
 }
 
 @keyframes pulse-dot {
   0%, 100% { opacity: 1; transform: scale(1); }
-  50%       { opacity: 0.5; transform: scale(0.8); }
+  50%      { opacity: 0.45; transform: scale(0.82); }
 }
 
 @keyframes flow-dash {
@@ -622,7 +769,7 @@
 
 @keyframes blink {
   0%, 100% { opacity: 1; }
-  50%       { opacity: 0.3; }
+  50%      { opacity: 0.32; }
 }
 
 @keyframes float-up {
@@ -656,177 +803,3 @@
 .animate-blink { animation: blink 1.5s infinite; }
 .animate-pulse-dot { animation: pulse-dot 2s infinite; }
 .animate-bar-grow { animation: bar-grow 0.5s ease; }
-
-/* ============================================================
-   TECH MODAL
-   ============================================================ */
-.tech-modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.5);
-  backdrop-filter: blur(4px);
-  z-index: 1000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-}
-
-.tech-modal {
-  background: #FFFFFF;
-  border-radius: 12px;
-  border: 1px solid #E2E8F0;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
-  max-width: 720px;
-  width: 100%;
-  max-height: 85vh;
-  overflow-y: auto;
-  animation: fade-in-up 0.25s ease;
-}
-
-.tech-modal-header {
-  padding: 20px 24px 16px;
-  border-bottom: 1px solid #E2E8F0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  position: sticky;
-  top: 0;
-  background: #FFFFFF;
-  z-index: 1;
-}
-
-.tech-modal-body {
-  padding: 20px 24px;
-}
-
-/* ============================================================
-   CLOSE BUTTON
-   ============================================================ */
-.close-btn {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  border: 1px solid #E2E8F0;
-  background: #F8FAFC;
-  color: #6B7280;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  transition: all 0.15s;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-
-.close-btn:hover {
-  background: #FEF2F2;
-  border-color: #FECACA;
-  color: #DC2626;
-}
-
-/* ============================================================
-   STATION BADGE
-   ============================================================ */
-.station-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  padding: 2px 7px;
-  border-radius: 4px;
-  font-size: 9px;
-  font-weight: 700;
-  font-family: 'Share Tech Mono', monospace;
-  letter-spacing: 0.05em;
-}
-
-.station-badge.S1 { background: #EFF6FF; color: #1A56DB; border: 1px solid #BFDBFE; }
-.station-badge.S2 { background: #ECFDF5; color: #059669; border: 1px solid #A7F3D0; }
-.station-badge.S3 { background: #FFF7ED; color: #D97706; border: 1px solid #FDE68A; }
-
-/* ============================================================
-   METER BADGE (入户室温计)
-   ============================================================ */
-.meter-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 1px 5px;
-  border-radius: 3px;
-  font-size: 8px;
-  font-weight: 700;
-  background: #EFF6FF;
-  color: #1A56DB;
-  border: 1px solid #BFDBFE;
-}
-
-/* ============================================================
-   FLOOR ROW (楼层温度行)
-   ============================================================ */
-.floor-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
-  border-radius: 4px;
-  margin-bottom: 2px;
-  transition: background 0.1s;
-}
-
-.floor-row:hover { background: #F8FAFC; }
-
-.floor-label {
-  font-size: 9px;
-  color: #9CA3AF;
-  font-family: 'Share Tech Mono', monospace;
-  width: 28px;
-  flex-shrink: 0;
-}
-
-.floor-bar-track {
-  flex: 1;
-  height: 6px;
-  background: #F1F5F9;
-  border-radius: 3px;
-  overflow: hidden;
-}
-
-.floor-bar-fill {
-  height: 100%;
-  border-radius: 3px;
-  transition: width 0.4s ease;
-}
-
-.floor-temp {
-  font-size: 10px;
-  font-weight: 700;
-  font-family: 'Share Tech Mono', monospace;
-  width: 32px;
-  text-align: right;
-  flex-shrink: 0;
-}
-
-/* ============================================================
-   STATUS INDICATOR
-   ============================================================ */
-.status-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.status-dot.online { background: #059669; animation: pulse-dot 2s infinite; }
-.status-dot.warning { background: #D97706; animation: pulse-dot 1.5s infinite; }
-.status-dot.danger { background: #DC2626; animation: pulse-dot 1s infinite; }
-.status-dot.offline { background: #9CA3AF; }
-
-/* ============================================================
-   GRID PATTERN (subtle background texture)
-   ============================================================ */
-.grid-bg {
-  background-image:
-    linear-gradient(rgba(26, 86, 219, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(26, 86, 219, 0.04) 1px, transparent 1px);
-  background-size: 32px 32px;
-}
