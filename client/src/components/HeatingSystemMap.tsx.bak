@@ -1,0 +1,1385 @@
+/**
+ * HeatingSystemMap.tsx — Multi-Station Comb Network
+ * HOLOGRAPHIC WIREFRAME STYLE — Deep blue grid mesh buildings
+ *
+ * Layout: Heat Source → 3 Heat Stations (S1/S2/S3) → each station connects to one zone row
+ *         Each zone row has 4-5 buildings rendered as holographic wireframe cubes.
+ */
+import { useEffect, useRef, useState, useCallback } from "react";
+import type { Building, HeatStation, WeatherType } from "../pages/Home";
+
+// ── Figma Asset CDN URLs ──────────────────────────────────────────────────
+const FIGMA_BUILDING_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663428492122/CZm6BZEe2oQq4xtYABPMda/building_neon_v6_113177a4.png";
+const FIGMA_STATION_IMG  = "https://d2xsxph8kpxj0f.cloudfront.net/310519663428492122/CZm6BZEe2oQq4xtYABPMda/heat_station_floating_nobg_7341f1d0.png";
+const FIGMA_HEATSRC_IMG  = "https://d2xsxph8kpxj0f.cloudfront.net/310519663428492122/CZm6BZEe2oQq4xtYABPMda/heat_source_floating_nobg_c7e07af6.png";
+
+
+// Demo annotation shown directly on the SVG map
+export interface DemoAnnotation {
+  id: string;
+  // SVG coordinate position (in 1100x820 viewBox)
+  svgX: number;
+  svgY: number;
+  // Content
+  title: string;
+  body?: string;
+  // Visual style
+  color: "red" | "green" | "blue" | "yellow" | "cyan";
+  // Pulse animation
+  pulse?: boolean;
+  // Arrow pointing direction
+  arrowDir?: "left" | "right" | "up" | "down";
+}
+
+interface Props {
+  buildings: Building[];
+  stations: HeatStation[];
+  weather: WeatherType;
+  onSelectBuilding: (b: Building) => void;
+  onSelectStation: (s: HeatStation) => void;
+  onSelectHeatSource?: () => void;
+  selectedBuildingId?: string;
+  selectedStationId?: string;
+  demoPhase?: number;
+  demoTargetBuildingId?: string;
+  demoHighlightZone?: string;
+  // Annotations to show directly on the map (for demo modes)
+  demoAnnotations?: DemoAnnotation[];
+  // Whether heat source is selected/expanded
+  heatSourceSelected?: boolean;
+}
+
+// ── Temperature colour system ──────────────────────────────────────────────
+function getTempColor(temp: number, demoPhase?: number, isTarget?: boolean) {
+  if (isTarget && demoPhase !== undefined && demoPhase >= 1) {
+    if (temp <= 15) return { badge: "#EF4444", text: "#EF4444", glow: "rgba(239,68,68,0.6)", lineColor: "rgba(239,68,68,0.8)", fillColor: "rgba(239,68,68,0.06)" };
+    if (temp <= 17) return { badge: "#F97316", text: "#F97316", glow: "rgba(249,115,22,0.5)", lineColor: "rgba(249,115,22,0.7)", fillColor: "rgba(249,115,22,0.05)" };
+    if (temp <= 19) return { badge: "#EAB308", text: "#EAB308", glow: "rgba(234,179,8,0.5)", lineColor: "rgba(234,179,8,0.7)", fillColor: "rgba(234,179,8,0.05)" };
+    return { badge: "#22C55E", text: "#22C55E", glow: "rgba(34,197,94,0.5)", lineColor: "rgba(34,197,94,0.7)", fillColor: "rgba(34,197,94,0.05)" };
+  }
+  if (temp > 22)
+    return { badge: "#EF4444", text: "#EF4444", glow: "rgba(239,68,68,0.3)", lineColor: "rgba(0,180,255,0.55)", fillColor: "rgba(0,40,100,0.12)" };
+  if (temp >= 20)
+    return { badge: "#64748B", text: "#7DD3FC", glow: "rgba(0,180,255,0.2)", lineColor: "rgba(0,180,255,0.45)", fillColor: "rgba(0,30,80,0.10)" };
+  return { badge: "#3B82F6", text: "#93C5FD", glow: "rgba(59,130,246,0.3)", lineColor: "rgba(0,180,255,0.55)", fillColor: "rgba(0,40,100,0.12)" };
+}
+
+// ── Animated Temperature Number (SVG native) ───────────────────────────────
+// Renders a pill-shaped badge with animated temperature number
+// cx/cy: center of the badge; uses SVG clipPath for scroll effect
+function AnimatedTempBadge({
+  cx, cy, value, bg, border, textFill, isHovered = false,
+}: {
+  cx: number; cy: number; value: number;
+  bg: string; border: string; textFill: string;
+  isHovered?: boolean;
+}) {
+  const [displayVal, setDisplayVal] = useState(value);
+  const [prevVal, setPrevVal] = useState(value);
+  const [yOffset, setYOffset] = useState(0); // SVG y offset for scroll animation
+  const animRef = useRef<number | null>(null);
+  const idRef = useRef(`atbadge-${Math.random().toString(36).slice(2)}`);
+
+  useEffect(() => {
+    if (Math.abs(value - prevVal) < 0.001) return;
+    const startTime = performance.now();
+    const duration = 450;
+    const startVal = prevVal;
+    const endVal = value;
+    const direction = endVal > startVal ? 1 : -1; // +1 = new value higher (slide up), -1 = slide down
+
+    const animate = (now: number) => {
+      const t = Math.min((now - startTime) / duration, 1);
+      const eased = 1 - Math.pow(1 - t, 3);
+      setDisplayVal(startVal + (endVal - startVal) * eased);
+      // Slide: starts offset in opposite direction, ends at 0
+      setYOffset((1 - eased) * direction * 14);
+      if (t < 1) {
+        animRef.current = requestAnimationFrame(animate);
+      } else {
+        setDisplayVal(endVal);
+        setYOffset(0);
+        setPrevVal(endVal);
+      }
+    };
+    if (animRef.current) cancelAnimationFrame(animRef.current);
+    animRef.current = requestAnimationFrame(animate);
+    return () => { if (animRef.current) cancelAnimationFrame(animRef.current); };
+  }, [value]);
+
+  const tempText = `${displayVal.toFixed(1)}°C`;
+  const charW = 12 * 0.62;
+  const w = Math.max(28, tempText.length * charW + 8 * 2);
+  const h = 22;
+  const clipId = idRef.current;
+
+  return (
+    <g>
+      <defs>
+        <clipPath id={clipId}>
+          <rect x={cx - w / 2} y={cy - h / 2 - 1} width={w} height={h + 2} rx={h / 2} />
+        </clipPath>
+      </defs>
+      {/* Background pill */}
+      <rect x={cx - w / 2} y={cy - h / 2} width={w} height={h} rx={h / 2}
+        fill={bg} stroke={border} strokeWidth={isHovered ? 1.5 : 1}
+      />
+      {/* Animated temperature text clipped to pill */}
+      <g clipPath={`url(#${clipId})`}>
+        <text x={cx} y={cy + 12 * 0.36 + yOffset} textAnchor="middle"
+          fontSize={12} fontWeight={700} fill={textFill}
+          fontFamily="'Noto Sans SC', 'Share Tech Mono', sans-serif"
+          style={{ userSelect: "none" }}>
+          {tempText}
+        </text>
+      </g>
+    </g>
+  );
+}
+
+// ── SVG pill label ────────────────────────────────────────────────────────
+function PillLabel({
+  cx, cy, text, bg, border, textColor, fontSize = 9, fontWeight = 700, paddingX = 7, height = 17,
+}: {
+  cx: number; cy: number; text: string;
+  bg: string; border: string; textColor: string;
+  fontSize?: number; fontWeight?: number; paddingX?: number; height?: number;
+}) {
+  const charW = fontSize * 0.62;
+  const w = Math.max(28, text.length * charW + paddingX * 2);
+  return (
+    <g>
+      <rect x={cx - w / 2} y={cy - height / 2} width={w} height={height} rx={height / 2}
+        fill={bg} stroke={border} strokeWidth={1} />
+      <text x={cx} y={cy + fontSize * 0.36} textAnchor="middle"
+        fontSize={fontSize} fontWeight={fontWeight} fill={textColor}
+        fontFamily="'Noto Sans SC', 'Share Tech Mono', sans-serif"
+        style={{ userSelect: "none" }}>
+        {text}
+      </text>
+    </g>
+  )
+}
+
+// ── Figma-style Building Icon (image + neon glow overlay) ───────────────────
+function HoloBuildingIcon({
+  b, gx, gy, railY, heightScale, isSelected, isStationHighlighted, isAlertTarget, isExecuting, isFocused, onClick, onHover, onLeave, demoPhase,
+}: {
+  b: Building; gx: number; gy: number; railY: number; heightScale?: number;
+  isSelected: boolean; isStationHighlighted?: boolean;
+  isAlertTarget?: boolean; isExecuting?: boolean;
+  isFocused?: boolean;
+  demoPhase?: number;
+  onClick: () => void;
+  onHover: (b: Building, x: number, y: number) => void;
+  onLeave: () => void;
+}) {
+  const [isHovered, setIsHovered] = useState(false);
+  const colors = getTempColor(b.temp, demoPhase, isAlertTarget);
+  const hs = heightScale ?? 1.0;
+
+  // Image dimensions — Figma building PNG aspect ratio ~0.62 wide:tall
+  const imgW = Math.round(352 * hs);
+  const imgH = Math.round(568 * hs);
+  const ix = gx - imgW / 2;
+  const iy = gy - imgH;
+
+  const isRedAlert = isAlertTarget && demoPhase !== undefined && demoPhase >= 1 && demoPhase < 5 && b.temp < 16;
+  const isGreenDone = isAlertTarget && demoPhase === 5;
+
+  // CSS drop-shadow glow (same style as HoloHeatSource / HoloHeatStation)
+  // New building PNG has transparent background, so drop-shadow works directly
+  const glowFilter = isRedAlert
+    ? "brightness(1.1) drop-shadow(0 0 6px rgba(239,68,68,0.90)) drop-shadow(0 0 16px rgba(239,68,68,0.45))"
+    : isGreenDone
+    ? "brightness(1.1) drop-shadow(0 0 5px rgba(34,197,94,0.85)) drop-shadow(0 0 14px rgba(34,197,94,0.40))"
+    : isSelected || isStationHighlighted
+    ? "brightness(1.2) drop-shadow(0 0 10px rgba(0,234,255,0.98)) drop-shadow(0 0 24px rgba(0,200,255,0.70)) drop-shadow(0 0 40px rgba(0,180,255,0.40))"
+    : isHovered
+    ? "brightness(1.15) drop-shadow(0 0 8px rgba(0,234,255,0.92)) drop-shadow(0 0 20px rgba(0,200,255,0.55)) drop-shadow(0 0 32px rgba(0,160,255,0.30))"
+    : "brightness(1.0) drop-shadow(0 0 5px rgba(0,220,255,0.70)) drop-shadow(0 0 12px rgba(0,160,255,0.35))";
+  const tintColor = "transparent"; // no overlay needed
+
+  const focusTransform = isFocused ? `translate(${gx}, ${gy}) scale(1.2) translate(${-gx}, ${-gy})` : undefined;
+
+  // Bounding box for overlays and hit area
+  const bboxX = ix - 6;
+  const bboxY = iy - 8;
+  const bboxW = imgW + 12;
+  const bboxH = imgH + 16;
+
+  return (
+    <g className="cursor-pointer" onClick={e => { e.stopPropagation(); onClick(); }}
+      onMouseEnter={e => { setIsHovered(true); onHover(b, e.clientX, e.clientY); }}
+      onMouseLeave={() => { setIsHovered(false); onLeave(); }}
+      transform={focusTransform}>
+
+      {/* Figma building image — transparent bg PNG, CSS drop-shadow like heat source/station */}
+      <image
+        href={FIGMA_BUILDING_IMG}
+        x={ix} y={iy} width={imgW} height={imgH}
+        preserveAspectRatio="xMidYMax meet"
+        style={{ filter: glowFilter }}
+      />
+
+      {/* SELECTION RING */}
+      {isSelected && (
+        <rect x={bboxX} y={bboxY} width={bboxW} height={bboxH} rx={6}
+          fill="none" stroke="#00D4FF" strokeWidth={1.5} strokeDasharray="6 3" opacity={0.8}>
+          <animate attributeName="stroke-dashoffset" values="0;-18" dur="1.2s" repeatCount="indefinite" />
+        </rect>
+      )}
+
+      {/* ALERT PULSE */}
+      {isRedAlert && (
+        <rect x={bboxX} y={bboxY} width={bboxW} height={bboxH} rx={6}
+          fill="none" stroke="#EF4444" strokeWidth={2} opacity={0.7}>
+          <animate attributeName="opacity" values="0.7;0.1;0.7" dur="0.6s" repeatCount="indefinite" />
+          <animate attributeName="stroke-width" values="2;4;2" dur="0.6s" repeatCount="indefinite" />
+        </rect>
+      )}
+
+      {/* DONE PULSE */}
+      {isGreenDone && (
+        <rect x={bboxX} y={bboxY} width={bboxW} height={bboxH} rx={6}
+          fill="none" stroke="#22C55E" strokeWidth={1.5} opacity={0.6}>
+          <animate attributeName="opacity" values="0.6;0.1;0.6" dur="1.5s" repeatCount="indefinite" />
+        </rect>
+      )}
+
+      {/* FOCUS PULSE */}
+      {isFocused && (
+        <>
+          <rect x={bboxX - 4} y={bboxY - 4} width={bboxW + 8} height={bboxH + 8} rx={8}
+            fill="rgba(255,215,0,0.08)" stroke="#FFD700" strokeWidth={3}>
+            <animate attributeName="opacity" values="1;0.15;1" dur="0.5s" repeatCount="indefinite" />
+            <animate attributeName="stroke-width" values="3;5;3" dur="0.5s" repeatCount="indefinite" />
+          </rect>
+          <rect x={gx - 28} y={iy - 42} width={56} height={16} rx={4}
+            fill="rgba(0,0,0,0.65)" stroke="rgba(255,215,0,0.5)" strokeWidth={1}>
+            <animate attributeName="opacity"
+              values="0;1;1;0;0" keyTimes="0;0.125;0.875;1;1"
+              dur="4s" repeatCount="indefinite" />
+          </rect>
+          <text x={gx} y={iy - 30} textAnchor="middle"
+            fontSize={10} fontWeight={800} fill="#FFD700"
+            fontFamily="'Noto Sans SC', sans-serif"
+            style={{ filter: 'drop-shadow(0 0 6px rgba(255,215,0,0.9))' }}>
+            <animate attributeName="opacity"
+              values="0;1;1;0;0" keyTimes="0;0.125;0.875;1;1"
+              dur="4s" repeatCount="indefinite" />
+            ▶ {b.name}
+          </text>
+        </>
+      )}
+
+      {/* TEMPERATURE BADGE - 楼栋正上方（图片顶部上方12px） */}
+      <AnimatedTempBadge
+        cx={gx} cy={iy - 12}
+        value={b.temp}
+        bg={isRedAlert ? "rgba(80,0,0,0.9)" : isGreenDone ? "rgba(0,50,20,0.9)" : isHovered ? "rgba(0,30,80,0.95)" : "rgba(0,20,60,0.9)"}
+        border={isRedAlert ? "rgba(239,68,68,0.7)" : isGreenDone ? "rgba(34,197,94,0.6)" : isHovered ? "rgba(0,220,255,0.8)" : "rgba(0,180,255,0.5)"}
+        textFill={colors.text}
+        isHovered={isHovered}
+      />
+
+      {/* BUILDING NAME - 在楼栋名称标签在主管下方 */}
+      <text x={gx} y={railY + 16} textAnchor="middle"
+        fontSize={8.5} fontWeight={600}
+        fill="rgba(148,210,255,0.82)"
+        fontFamily="'Noto Sans SC', sans-serif"
+        style={{ userSelect: "none" }}>
+        {b.name}
+      </text>
+
+      {/* ALERT BADGE */}
+      {isRedAlert && (
+        <g>
+          <circle cx={ix + imgW + 4} cy={iy + 8} r={9} fill="#EF4444">
+            <animate attributeName="r" values="7;11;7" dur="0.6s" repeatCount="indefinite" />
+          </circle>
+          <text x={ix + imgW + 4} y={iy + 12} textAnchor="middle" fontSize={10} fontWeight={900} fill="white">!</text>
+        </g>
+      )}
+      {isGreenDone && (
+        <g>
+          <circle cx={ix + imgW + 4} cy={iy + 8} r={9} fill="#22C55E" />
+          <text x={ix + imgW + 4} y={iy + 12} textAnchor="middle" fontSize={10} fontWeight={900} fill="white">✓</text>
+        </g>
+      )}
+
+      {/* VALVE ICONS - 在主管上（railY处） */}
+      <g>
+        <circle cx={gx} cy={railY} r={8}
+          fill={isExecuting ? "rgba(0,80,200,0.3)" : "rgba(0,20,60,0.8)"}
+          stroke={isExecuting ? "#00D4FF" : "rgba(0,180,255,0.5)"} strokeWidth={1.2} />
+        <g transform={`rotate(${isExecuting ? 45 : 0}, ${gx}, ${railY})`}
+          style={isExecuting ? { animation: 'valve-rotate 1.5s linear infinite', transformOrigin: `${gx}px ${railY}px` } : undefined}>
+          <line x1={gx} y1={railY - 6} x2={gx} y2={railY + 6}
+            stroke={isExecuting ? '#00D4FF' : 'rgba(0,180,255,0.7)'} strokeWidth={1.5} strokeLinecap="round" />
+          <line x1={gx - 5} y1={railY} x2={gx + 5} y2={railY}
+            stroke={isExecuting ? '#00D4FF' : 'rgba(0,180,255,0.5)'} strokeWidth={1.2} strokeLinecap="round" />
+        </g>
+        <circle cx={gx} cy={railY} r={2} fill={isExecuting ? '#00FF9D' : '#00D4FF'} />
+        {isExecuting && (
+          <circle cx={gx} cy={railY} r={10} fill="none" stroke="#00D4FF" strokeWidth={1} opacity={0.4}>
+            <animate attributeName="r" values="8;14;8" dur="1.2s" repeatCount="indefinite" />
+            <animate attributeName="opacity" values="0.4;0;0.4" dur="1.2s" repeatCount="indefinite" />
+          </circle>
+        )}
+      </g>
+
+      {/* Low-temp warning dot (normal mode) - static */}
+      {b.temp < 18 && !isAlertTarget && (
+        <circle cx={ix + imgW + 2} cy={iy + 6} r={4} fill="#E07070" opacity={0.85} />
+      )}
+
+      {/* HOVER GLOW RING */}
+      {isHovered && !isSelected && !isRedAlert && !isGreenDone && (
+        <rect x={bboxX - 4} y={bboxY - 4} width={bboxW + 8} height={bboxH + 8} rx={8}
+          fill="rgba(0,200,255,0.04)" stroke="rgba(0,220,255,0.55)" strokeWidth={1.5}
+          style={{ pointerEvents: 'none' }}
+        />
+      )}
+
+      {/* Hit area - 比楼体图片各边扩大10px，确保点击边缘也能命中 */}
+      <rect x={ix - 10} y={iy - 10} width={imgW + 20} height={imgH + 20} fill="rgba(0,0,0,0)" style={{ pointerEvents: "all", cursor: "pointer" }} />
+    </g>
+  );
+}
+
+// ── Figma-style Heat Source (image + neon glow overlay) ─────────────────────
+function HoloHeatSource({ x, y, onClick, isSelected }: { x: number; y: number; onClick?: () => void; isSelected?: boolean }) {
+  const imgW = 280;
+  const imgH = 255;
+  const ix = x - imgW / 2;
+  // y is the VISUAL CENTER of the heat source (pipe passes through here)
+  const iy = y - imgH / 2;
+
+  const glowFilter = isSelected
+    ? "brightness(2.2) saturate(1.5) drop-shadow(0 0 12px rgba(0,234,255,0.95)) drop-shadow(0 0 28px rgba(0,234,255,0.65)) drop-shadow(0 0 56px rgba(0,234,255,0.35))"
+    : "brightness(1.8) saturate(1.3) drop-shadow(0 0 6px rgba(0,234,255,0.55)) drop-shadow(0 0 16px rgba(0,234,255,0.30))";
+
+  return (
+    <g className="cursor-pointer" onClick={onClick}>
+      {/* Selection ring - centered on visual center (x, y) */}
+      {isSelected && (
+        <circle cx={x} cy={y} r={88}
+          fill="none" stroke="#00D4FF" strokeWidth={1.5} strokeDasharray="10 5" opacity={0.6}>
+          <animateTransform attributeName="transform" type="rotate"
+            from={`0 ${x} ${y}`}
+            to={`360 ${x} ${y}`}
+            dur="10s" repeatCount="indefinite" />
+        </circle>
+      )}
+
+      {/* Figma heat source image - no base version */}
+      <image href={FIGMA_HEATSRC_IMG} x={ix} y={iy} width={imgW} height={imgH}
+        style={{ filter: glowFilter }} />
+
+      {/* Label - below image bottom */}
+      <text x={x} y={y + imgH / 2 + 18} textAnchor="middle" fontSize={9} fontWeight={600}
+        fill="rgba(125,211,252,0.75)"
+        fontFamily="'Noto Sans SC', sans-serif">热源厂</text>
+
+      {/* Hit area */}
+      <rect x={ix - 10} y={iy - 10} width={imgW + 20} height={imgH + 40} fill="transparent" />
+    </g>
+  );
+}
+
+// ── Figma-style Heat Station (image + neon glow overlay) ───────────────────
+function HoloHeatStation({
+  sx, sy, sc, station, isSel, isHighlighted, isFocused, demoPhase, onSelect,
+}: {
+  sx: number; sy: number;
+  sc: { id: string; label: string };
+  station: HeatStation;
+  isSel: boolean; isHighlighted: boolean;
+  isFocused?: boolean;
+  demoPhase: number;
+  onSelect: () => void;
+}) {
+  const [isHovered, setIsHovered] = useState(false);
+  const imgW = 200;  // 换热站比热源小
+  const imgH = 178;  // 换热站比热源小
+  const ix = sx - imgW / 2;
+  // sy is the VISUAL CENTER of the station (pipe passes through here)
+  const iy = sy - imgH / 2;
+
+  const glowFilter = isHighlighted
+    ? "brightness(2.2) saturate(1.5) drop-shadow(0 0 10px rgba(59,130,246,0.9)) drop-shadow(0 0 24px rgba(59,130,246,0.6))"
+    : isSel
+    ? "brightness(2.4) saturate(1.6) drop-shadow(0 0 12px rgba(0,234,255,0.98)) drop-shadow(0 0 28px rgba(0,234,255,0.70)) drop-shadow(0 0 50px rgba(0,200,255,0.40))"
+    : isHovered
+    ? "brightness(2.1) saturate(1.5) drop-shadow(0 0 9px rgba(0,234,255,0.88)) drop-shadow(0 0 22px rgba(0,200,255,0.55)) drop-shadow(0 0 38px rgba(0,160,255,0.30))"
+    : "brightness(1.8) saturate(1.3) drop-shadow(0 0 5px rgba(0,234,255,0.5)) drop-shadow(0 0 12px rgba(0,234,255,0.28))";
+
+  const focusTransform = isFocused ? `translate(${sx}, ${sy}) scale(1.2) translate(${-sx}, ${-sy})` : undefined;
+
+  return (
+    <g className="cursor-pointer" onClick={onSelect} transform={focusTransform}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}>
+      {/* Selection / highlight ring - centered on visual center (sx, sy) */}
+      {(isSel || isHighlighted) && (
+        <circle cx={sx} cy={sy} r={44}
+          fill="none" stroke={isHighlighted ? "#3B82F6" : "#00D4FF"}
+          strokeWidth={1.5} strokeDasharray="8 4" opacity={0.5}>
+          {isSel && (
+            <animateTransform attributeName="transform" type="rotate"
+              from={`0 ${sx} ${sy}`}
+              to={`360 ${sx} ${sy}`}
+              dur="8s" repeatCount="indefinite" />
+          )}
+          {isHighlighted && (
+            <animate attributeName="opacity" values="0.3;0.7;0.3" dur="1s" repeatCount="indefinite" />
+          )}
+        </circle>
+      )}
+
+      {/* Figma station image - no base version */}
+      <image href={FIGMA_STATION_IMG} x={ix} y={iy} width={imgW} height={imgH}
+        style={{ filter: glowFilter }} />
+
+      {/* Station ID badge */}
+      <circle cx={sx - imgW / 2 + 14} cy={iy - 8} r={12}
+        fill="rgba(0,20,60,0.92)" stroke="rgba(0,180,255,0.6)" strokeWidth={1} />
+      <text x={sx - imgW / 2 + 14} y={iy - 4} textAnchor="middle"
+        fontSize={8} fontWeight={800} fill="#00D4FF"
+        fontFamily="'Share Tech Mono', monospace">{sc.id}</text>
+
+      {/* Station label - above image top, clear of buildings */}
+      <text x={sx} y={iy - 14} textAnchor="middle" fontSize={10} fontWeight={700}
+        fill={isSel ? "#7DD3FC" : "rgba(0,212,255,0.9)"}
+        fontFamily="'Noto Sans SC', sans-serif">{sc.label}</text>
+
+      {/* Demo phase params */}
+      {isHighlighted && station && (
+        <g>
+          <rect x={sx - 44} y={iy - 32} width={88} height={26} rx={6}
+            fill="rgba(0,30,100,0.85)" stroke="rgba(59,130,246,0.5)" strokeWidth={1} />
+          <text x={sx} y={iy - 22} textAnchor="middle" fontSize={8} fontWeight={700} fill="#93C5FD"
+            fontFamily="'Share Tech Mono', monospace">
+            {station.flow.toFixed(0)} m³/h · {station.supplyTemp.toFixed(1)}°C
+          </text>
+          <text x={sx} y={iy - 12} textAnchor="middle" fontSize={7.5} fontWeight={600} fill="#60A5FA"
+            fontFamily="'Noto Sans SC', sans-serif">↑ 调控中</text>
+        </g>
+      )}
+
+      {/* FOCUS PULSE */}
+      {isFocused && (
+        <>
+          <rect x={ix - 10} y={iy - 10} width={imgW + 20} height={imgH + 20} rx={6}
+            fill="rgba(255,215,0,0.08)" stroke="#FFD700" strokeWidth={3}>
+            <animate attributeName="opacity" values="1;0.15;1" dur="0.5s" repeatCount="indefinite" />
+            <animate attributeName="stroke-width" values="3;5;3" dur="0.5s" repeatCount="indefinite" />
+          </rect>
+          <rect x={sx - 32} y={iy - 38} width={64} height={16} rx={4}
+            fill="rgba(0,0,0,0.70)" stroke="rgba(255,215,0,0.5)" strokeWidth={1}>
+            <animate attributeName="opacity"
+              values="0;1;1;0;0" keyTimes="0;0.125;0.875;1;1"
+              dur="4s" repeatCount="indefinite" />
+          </rect>
+          <text x={sx} y={iy - 26} textAnchor="middle"
+            fontSize={10} fontWeight={800} fill="#FFD700"
+            fontFamily="'Noto Sans SC', sans-serif"
+            style={{ filter: 'drop-shadow(0 0 6px rgba(255,215,0,0.9))' }}>
+            <animate attributeName="opacity"
+              values="0;1;1;0;0" keyTimes="0;0.125;0.875;1;1"
+              dur="4s" repeatCount="indefinite" />
+            ▶ {sc.label}
+          </text>
+        </>
+      )}
+
+      {/* HOVER GLOW RING for station */}
+      {isHovered && !isSel && !isHighlighted && (
+        <rect x={ix - 10} y={iy - 10} width={imgW + 20} height={imgH + 20} rx={8}
+          fill="rgba(0,200,255,0.04)" stroke="rgba(0,220,255,0.50)" strokeWidth={1.5}
+          style={{ pointerEvents: 'none' }}
+        />
+      )}
+
+      {/* Hit area - must use fill="rgba(0,0,0,0)" + pointerEvents="all" so transparent area responds to clicks */}
+      <rect x={ix - 16} y={iy - 36} width={imgW + 32} height={imgH + 60} fill="rgba(0,0,0,0)" style={{ pointerEvents: "all" }} />
+    </g>
+  );
+}
+
+// ── Neon Cyan Flow Pipe (霓虹青发光管道) ─────────────────────────
+function FlowPipe({ x1, y1, x2, y2, width = 2.5, highlighted = false }: {
+  x1: number; y1: number; x2: number; y2: number;
+  width?: number; color?: string; highlighted?: boolean;
+}) {
+  if (!highlighted) {
+    return (
+      <g>
+        {/* 单一管道：霺虹青 */}
+        <line x1={x1} y1={y1} x2={x2} y2={y2}
+          stroke="rgba(0,180,255,0.55)" strokeWidth={width} strokeLinecap="round" />
+      </g>
+    );
+  }
+
+  return (
+    <g>
+      {/* 高亮外发光 */}
+      <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="rgba(0,234,255,0.18)" strokeWidth={width + 8} strokeLinecap="round" />
+      {/* 高亮主管 */}
+      <line x1={x1} y1={y1} x2={x2} y2={y2}
+        stroke="rgba(0,234,255,0.85)" strokeWidth={width} strokeLinecap="round" />
+    </g>
+  );
+}
+
+// ── Weather canvas overlay ────────────────────────────────────────────────
+function WeatherCanvas({ weather }: { weather: WeatherType }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  const [cloudOffset, setCloudOffset] = useState(0);
+  const cloudAnimRef = useRef<number>(0);
+
+  // Animate clouds for cloudy weather via React state
+  useEffect(() => {
+    if (weather !== "cloudy") return;
+    let offset = 0;
+    const animate = () => {
+      offset += 0.15;
+      setCloudOffset(offset);
+      cloudAnimRef.current = requestAnimationFrame(animate);
+    };
+    cloudAnimRef.current = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(cloudAnimRef.current);
+  }, [weather]);
+
+  useEffect(() => {
+    const canvas = ref.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    canvas.width = canvas.offsetWidth || 900;
+    canvas.height = canvas.offsetHeight || 600;
+    let animId: number;
+
+    if (weather === "rainy") {
+      const drops = Array.from({ length: 80 }, () => ({
+        x: Math.random() * canvas.width, y: Math.random() * canvas.height,
+        speed: 4 + Math.random() * 4, len: 10 + Math.random() * 8,
+      }));
+      const draw = () => {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.strokeStyle = "rgba(59,130,246,0.15)"; ctx.lineWidth = 0.8;
+        drops.forEach(d => {
+          ctx.beginPath(); ctx.moveTo(d.x, d.y); ctx.lineTo(d.x - 1.5, d.y + d.len); ctx.stroke();
+          d.y += d.speed; d.x -= 0.8;
+          if (d.y > canvas.height) { d.y = -d.len; d.x = Math.random() * canvas.width; }
+        });
+        animId = requestAnimationFrame(draw);
+      };
+      draw();
+    } else if (weather === "snowy") {
+      const flakes = Array.from({ length: 55 }, () => ({
+        x: Math.random() * canvas.width, y: Math.random() * canvas.height,
+        speed: 0.5 + Math.random() * 1.2, size: 1.5 + Math.random() * 2.5,
+        drift: (Math.random() - 0.5) * 0.4,
+      }));
+      const draw = () => {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "rgba(147,197,253,0.5)";
+        flakes.forEach(f => {
+          ctx.beginPath(); ctx.arc(f.x, f.y, f.size, 0, Math.PI * 2); ctx.fill();
+          f.y += f.speed; f.x += f.drift;
+          if (f.y > canvas.height) { f.y = -5; f.x = Math.random() * canvas.width; }
+        });
+        animId = requestAnimationFrame(draw);
+      };
+      draw();
+    } else if (weather === "sunny") {
+      let angle = 0;
+      const draw = () => {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        const cx = canvas.width * 0.85, cy = 55;
+        const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 80);
+        grad.addColorStop(0, "rgba(251,191,36,0.10)");
+        grad.addColorStop(0.5, "rgba(251,191,36,0.03)");
+        grad.addColorStop(1, "transparent");
+        ctx.fillStyle = grad;
+        ctx.beginPath(); ctx.arc(cx, cy, 80, 0, Math.PI * 2); ctx.fill();
+        for (let i = 0; i < 10; i++) {
+          const a = (i / 10) * Math.PI * 2 + angle;
+          ctx.strokeStyle = "rgba(251,191,36,0.08)"; ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.moveTo(cx + Math.cos(a) * 28, cy + Math.sin(a) * 28);
+          ctx.lineTo(cx + Math.cos(a) * 60, cy + Math.sin(a) * 60);
+          ctx.stroke();
+        }
+        angle += 0.004;
+        animId = requestAnimationFrame(draw);
+      };
+      draw();
+    }
+    return () => cancelAnimationFrame(animId);
+  }, [weather]);
+
+  // Cloudy: render SVG fluffy cumulus clouds (much prettier than canvas ellipses)
+  if (weather === "cloudy") {
+    const W = 1100, H = 160;
+    const c1x = ((cloudOffset * 0.45) % (W + 240)) - 240;
+    const c2x = ((cloudOffset * 0.28 + 420) % (W + 240)) - 240;
+    const c3x = ((cloudOffset * 0.38 + 750) % (W + 240)) - 240;
+    // Shared cloud shape as inline SVG group
+    const CloudShape = ({ scale = 1, op = 0.82 }: { scale?: number; op?: number }) => (
+      <g opacity={op}>
+        {/* Shadow base */}
+        <ellipse cx="90" cy="78" rx="80" ry="14" fill="rgba(10,25,60,0.25)" style={{ filter: "blur(4px)" }} />
+        {/* Cloud body — dark blue-grey translucent */}
+        <ellipse cx="90" cy="68" rx="78" ry="22" fill="rgba(40,70,120,0.28)" />
+        <circle cx="38" cy="52" r="28" fill="rgba(45,75,130,0.25)" />
+        <circle cx="38" cy="52" r="20" fill="rgba(55,90,150,0.22)" />
+        <circle cx="68" cy="40" r="34" fill="rgba(40,68,118,0.28)" />
+        <circle cx="68" cy="40" r="26" fill="rgba(52,85,145,0.24)" />
+        <circle cx="98" cy="30" r="38" fill="rgba(38,65,115,0.30)" />
+        <circle cx="98" cy="30" r="30" fill="rgba(50,82,140,0.26)" />
+        <circle cx="98" cy="27" r="20" fill="rgba(60,95,158,0.22)" />
+        <circle cx="130" cy="42" r="30" fill="rgba(44,72,125,0.26)" />
+        <circle cx="130" cy="42" r="22" fill="rgba(55,88,148,0.22)" />
+        <circle cx="155" cy="55" r="20" fill="rgba(48,78,132,0.24)" />
+        <circle cx="155" cy="55" r="13" fill="rgba(58,92,152,0.20)" />
+        {/* Subtle highlights — very dim */}
+        <circle cx="88" cy="22" r="13" fill="rgba(100,160,220,0.12)" />
+        <circle cx="66" cy="33" r="9" fill="rgba(100,160,220,0.10)" />
+        <circle cx="116" cy="18" r="10" fill="rgba(100,160,220,0.09)" />
+        {/* Base fill */}
+        <ellipse cx="90" cy="68" rx="76" ry="20" fill="rgba(42,70,122,0.26)" />
+      </g>
+    );
+    return (
+      <svg style={{
+        position: "absolute", top: 0, left: 0, width: "100%", height: "22%",
+        pointerEvents: "none", zIndex: 3, overflow: "hidden",
+      }} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMin slice">
+        <defs>
+          <filter id="cloud-soft">
+            <feGaussianBlur stdDeviation="1.2" result="blur" />
+            <feComposite in="SourceGraphic" in2="blur" operator="over" />
+          </filter>
+        </defs>
+        {/* Cloud 1 — large, slow */}
+        <g transform={`translate(${c1x}, 8) scale(1.15)`}>
+          <CloudShape op={0.88} />
+        </g>
+        {/* Cloud 2 — medium */}
+        <g transform={`translate(${c2x}, 28) scale(0.76)`}>
+          <CloudShape op={0.72} />
+        </g>
+        {/* Cloud 3 — small, faster */}
+        <g transform={`translate(${c3x}, 15) scale(0.56)`}>
+          <CloudShape op={0.62} />
+        </g>
+      </svg>
+    );
+  }
+
+  return (
+    <canvas ref={ref} style={{
+      position: "absolute", inset: 0, width: "100%", height: "100%",
+      pointerEvents: "none", zIndex: 3,
+    }} />
+  );
+}
+
+// ── Main component ────────────────────────────────────────────────────────
+export default function HeatingSystemMap({
+  buildings, stations, weather,
+  onSelectBuilding, onSelectStation, onSelectHeatSource,
+  selectedBuildingId, selectedStationId,
+  demoPhase = 0,
+  demoTargetBuildingId,
+  demoHighlightZone,
+  demoAnnotations = [],
+  heatSourceSelected = false,
+}: Props) {
+  const [tooltip, setTooltip] = useState<{ building: Building; x: number; y: number } | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+
+  const [transform, setTransform] = useState({ scale: 1, tx: 0, ty: 0 });
+  const touchRef = useRef<{ lastDist: number; lastX: number; lastY: number; touches: number } | null>(null);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      touchRef.current = { lastDist: 0, lastX: e.touches[0].clientX, lastY: e.touches[0].clientY, touches: 1 };
+    } else if (e.touches.length === 2) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      touchRef.current = {
+        lastDist: Math.sqrt(dx * dx + dy * dy),
+        lastX: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+        lastY: (e.touches[0].clientY + e.touches[1].clientY) / 2,
+        touches: 2,
+      };
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    e.preventDefault();
+    if (!touchRef.current) return;
+    if (e.touches.length === 1 && touchRef.current.touches === 1) {
+      const dx = e.touches[0].clientX - touchRef.current.lastX;
+      const dy = e.touches[0].clientY - touchRef.current.lastY;
+      setTransform(t => ({ ...t, tx: t.tx + dx, ty: t.ty + dy }));
+      touchRef.current.lastX = e.touches[0].clientX;
+      touchRef.current.lastY = e.touches[0].clientY;
+    } else if (e.touches.length === 2) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      if (touchRef.current.lastDist > 0) {
+        const ratio = dist / touchRef.current.lastDist;
+        setTransform(t => ({
+          scale: Math.min(3, Math.max(0.4, t.scale * ratio)),
+          tx: t.tx + (midX - touchRef.current!.lastX),
+          ty: t.ty + (midY - touchRef.current!.lastY),
+        }));
+      }
+      touchRef.current.lastDist = dist;
+      touchRef.current.lastX = midX;
+      touchRef.current.lastY = midY;
+      touchRef.current.touches = 2;
+    }
+  };
+  const handleTouchEnd = () => { touchRef.current = null; };
+  const resetTransform = () => setTransform({ scale: 1, tx: 0, ty: 0 });
+
+  // ── SVG坐标转换点击处理器（绕过3D变换导致的事件拦截问题）────────────────────────
+  // 在根容器上捕获所有点击，通过SVG坐标转换判断点击目标
+  // 这样无论外层有多少3D变换（perspective/preserve-3d），点击都能正确识别
+  const handleContainerClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const target = e.target as Element;
+    const svg = svgRef.current;
+    if (!svg) return;
+    // 允许SVG元素和直接覆盖在SVG上的纯容器div（处理3D变换容器遮挡问题）
+    // 拒绝按钮、面板等交互UI元素
+    const isSvgElement = target.namespaceURI === 'http://www.w3.org/2000/svg';
+    if (!isSvgElement) {
+      // 只允许纯容器div（没有直接文字内容、不是按鈕、不在面板内）
+      if (target.tagName !== 'DIV') return;
+      if (target.closest('button') || target.closest('[data-panel]')) return;
+      // 注意：不能用innerText（会包含子SVG的文字），改为检查直接文字子节点
+      const hasDirectText = Array.from(target.childNodes).some(
+        n => n.nodeType === Node.TEXT_NODE && n.textContent?.trim()
+      );
+      if (hasDirectText) return;
+      // 如果div有class（如mobile-map-hint等）且不是纯容器，也拒绝
+      const cls = (target as HTMLElement).className?.toString() || '';
+      if (cls && !cls.includes('origin-center') && !cls.includes('w-full')) return;
+    }
+    // 使用SVG原生坐标转换，正确处理CSS 3D变换（matrix3d等）
+    let svgX: number, svgY: number;
+    try {
+      const pt = (svg as SVGSVGElement).createSVGPoint();
+      pt.x = e.clientX;
+      pt.y = e.clientY;
+      const ctm = (svg as SVGSVGElement).getScreenCTM();
+      if (!ctm) return;
+      const svgPt = pt.matrixTransform(ctm.inverse());
+      svgX = svgPt.x;
+      svgY = svgPt.y;
+    } catch {
+      // 降级：用简单线性变换
+      const svgRect = svg.getBoundingClientRect();
+      const vb = svg.viewBox.baseVal;
+      if (svgRect.width === 0 || svgRect.height === 0) return;
+      svgX = (e.clientX - svgRect.left) * (vb.width / svgRect.width) + vb.x;
+      svgY = (e.clientY - svgRect.top) * (vb.height / svgRect.height) + vb.y;
+    }
+    // 检查是否点击了换热站（优先级低于楼栋）
+    // 换热站hit area: x=hitX, y=stIy-70, width=hitW, height=stImgH+120
+    let stationHit: HeatStation | null = null;
+    for (const sc of STATION_CONFIGS) {
+      const station = stations.find(s => s.id === sc.id);
+      if (!station) continue;
+      const stImgW = 200, stImgH = 178;
+      const stIx = sc.x - stImgW / 2;
+      const stIy = sc.y - stImgH / 2;
+      const hitX = stIx - 50;
+      const hitMaxRight = 420;
+      const hitW = Math.min(stImgW + 100, hitMaxRight - hitX);
+      const hitY = stIy - 70;
+      const hitH = stImgH + 120;
+      if (svgX >= hitX && svgX <= hitX + hitW && svgY >= hitY && svgY <= hitY + hitH) {
+        stationHit = station;
+      }
+    }
+    // 检查是否点击了楼栋（优先级高于换热站）— 精确匹配楼体图片范围
+    let buildingHit: Building | null = null;
+    for (const b of buildings) {
+      const bPos = gridPos[b.id];
+      if (!bPos) continue;
+      const bHs = bPos.heightScale ?? 1.0;
+      const bImgW = Math.round(352 * bHs);
+      const bImgH = Math.round(568 * bHs);
+      const bIx = bPos.gx - bImgW / 2;
+      const bIy = bPos.gy - bImgH;
+      // 匹配楼体图片范围（各边扩大10px，与hit area rect保持一致）
+      const hitPad = 10;
+      if (svgX >= bIx - hitPad && svgX <= bIx + bImgW + hitPad && svgY >= bIy - hitPad && svgY <= bIy + bImgH + hitPad) {
+        buildingHit = b;
+        break;
+      }
+    }
+    if (buildingHit) {
+      e.stopPropagation();
+      onSelectBuilding(buildingHit);
+    } else if (stationHit) {
+      e.stopPropagation();
+      onSelectStation(stationHit);
+    }
+  };
+
+  // ── Layout constants ─────────────────────────────────────────────────────────────────────────────────────
+  // 楼栋放大约1.5倍（HEIGHT_SCALE），换热站放大20%
+  // 策略：VB_Y_OFFSET=820，viewBox向上扩展820单位，使楼栋顶部完全在viewBox内可见
+  // viewBox: "0 -820 1600 1680" 允许建筑图片从y=-820开始显示
+  const VW = 1600, VH = 600;
+  // viewBox向上扩展，使楼栋图片顶部完全可见
+  const VB_Y_OFFSET = 200;
+  const VB_TOTAL_H = VH + VB_Y_OFFSET;
+
+  // ── 布局参数──
+  // RAIL_YS: 横向主管Y坐标，楼栋在主管上方生长
+  // 三行等距130px，居中布局在VH内
+  // 楼栋图片高度imgH≈131px，分支管BRANCH_LEN=28
+  // 楼栋占用空间：从 railY-159（顶部）到 railY（主管）
+  // 行间距需要 >= 159px，设为170px留有余量
+  // 第三行楼栋名称标签在railY+30处，需要在VH=600内
+  // RAIL_YS[2]+30 < 600 → RAIL_YS[2] < 570
+  // 三行等距160px：150, 310, 470
+  const RAIL_YS = [150, 310, 470];  // 三行等距160px，第三行在470，标签在500内完全可见
+  // 热源宽280px，中心在srcX=120，右边缘=120+140=260
+  // 换热站宽200px，中心在x=440，左边缘=440-100=340 → 间距80px
+  // 换热站右边缘=440+100=540，第一列楼栋=610 → 间距70px
+  // 列间距统一为200px：610, 810, 1010
+  const srcX = 120, srcY = (RAIL_YS[0] + RAIL_YS[2]) / 2;  // 热源垂直居中
+  const STATION_CONFIGS = [
+    { id: "S1", x: 440, y: RAIL_YS[0], label: "换热站A" },
+    { id: "S2", x: 440, y: RAIL_YS[1], label: "换热站B" },
+    { id: "S3", x: 440, y: RAIL_YS[2], label: "换热站C" },
+  ];
+  const trunkX = 270;  // 主干管X（热源右边缘260和换热站左边缘340之间）
+  const trunkTopY = RAIL_YS[0];
+  const trunkBotY = RAIL_YS[2];
+  // 9栋楼：3列均匀间距200px
+  const COL_XS = [610, 810, 1010];  // 列间距200px，第一列距换热站右边70px
+  const HEIGHT_SCALE = [0.23, 0.23, 0.23];  // 统一尺寸
+  const STAGGER_Y = [0, 0, 0];  // 不错落，保持水平对齐
+
+  const ZONE_BLDG_IDS = [
+    ["1", "2", "3"],    // S1换热站A（最上行, RAIL_YS[0]=100）
+    ["4", "5", "9"],    // S2换热站B（中间行, RAIL_YS[1]=415）
+    ["7", "8", "9b"],   // S3换热站C（最下行, RAIL_YS[2]=730）
+  ];
+  const gridPos: Record<string, { gx: number; gy: number; heightScale: number; bottomPad: number }> = {};
+  ZONE_BLDG_IDS.forEach((ids, zoneIdx) => {
+    ids.forEach((id, colIdx) => {
+      const hs = HEIGHT_SCALE[colIdx] ?? 1.0;
+      const imgH = Math.round(568 * hs);
+      const gx = COL_XS[colIdx];
+      const railY = RAIL_YS[zoneIdx];
+      // PNG楼栋图片：建筑主体占上方~78%，底部透明区域约22%
+      // BOTTOM_PAD = PNG底部透明区域高度
+      // BRANCH_LEN = 分支管长度（从主管向上到楼栋视觉底部的距离）
+      // 楼栋视觉底部 = railY - BRANCH_LEN（楼栋悬浮在主管上方）
+      // 图片底边 gy = 楼栋视觉底部 + BOTTOM_PAD = railY - BRANCH_LEN + BOTTOM_PAD
+      // 分支管从 railY 向上画到 railY - BRANCH_LEN（即 gy - BOTTOM_PAD）
+      // PNG实际透明区域（1024x1536原图测量）：
+      // 底部透明 = 436/1536 = 28.4%，顶部透明 = 366/1536 = 23.8%
+      const BOTTOM_PAD = Math.round(imgH * 0.284);  // PNG底部透明区域高度（28.4%）
+      // BRANCH_LEN = BOTTOM_PAD - 5：图片底边超过主管下方5px，透明区域轻微覆盖主管，视觉上楼栋底部与主管无缝连接
+      const BRANCH_LEN = BOTTOM_PAD - 5;  // 分支管长度：主管到楼栋视觉底部的距离
+      gridPos[id] = {
+        gx,
+        gy: railY - BRANCH_LEN + BOTTOM_PAD,  // 图片底边 = 视觉底部(railY-BRANCH_LEN) + 底部透明区域
+        heightScale: hs,
+        bottomPad: BOTTOM_PAD,  // 保存以供分支管使用（分支管终点 = gy - BOTTOM_PAD = railY - BRANCH_LEN）
+      };
+    });
+  });
+
+  const ZONE_RECTS = ZONE_BLDG_IDS.map((ids, zoneIdx) => {
+    const xs = ids.map(id => gridPos[id]?.gx ?? 0);
+    const minX = Math.min(...xs) - 68;
+    const maxX = Math.max(...xs) + 70;
+    const railY = RAIL_YS[zoneIdx];
+    const highestTop = Math.min(...ids.map(id => {
+      const pos = gridPos[id];
+      if (!pos) return railY - 100;
+      // Use actual Figma building image height (568px base) for zone rect calculation
+      const imgH = Math.round(568 * (pos.heightScale ?? 1));
+      return pos.gy - imgH - 14;
+    }));
+    const lowestBase = Math.max(...ids.map(id => gridPos[id]?.gy ?? railY)) + 38;
+    return {
+      label: ["Zone A", "Zone B", "Zone C"][zoneIdx],
+      x: minX, y: highestTop - 28,
+      width: maxX - minX, height: lowestBase - (highestTop - 28),
+    };
+  });
+
+  const highlightedZoneIdx = demoHighlightZone
+    ? ["S1", "S2", "S3"].indexOf(demoHighlightZone)
+    : -1;
+  const targetZoneIdx = demoTargetBuildingId
+    ? ZONE_BLDG_IDS.findIndex(ids => ids.includes(demoTargetBuildingId))
+    : -1;
+  const effectiveHighlightZone = (demoPhase >= 4 && targetZoneIdx >= 0) ? targetZoneIdx : highlightedZoneIdx;
+
+  // 根据 demoAnnotations 推断当前步骤焦点楼栋 ID（pulse=true 且 id 包含 'bldg' 或 'exec-bldg' 的标注）
+  const focusBuildingIds = new Set<string>(
+    demoAnnotations
+      .filter(a => a.pulse && (a.id.includes('bldg') || a.id.includes('alert-bldg') || a.id.includes('exec-bldg') || a.id.includes('done-bldg')))
+      .map(a => {
+        // 从标注 id 提取楼栋数字（如 'alert-bldg9' → '9'）
+        const m = a.id.match(/(\d+)$/);
+        return m ? m[1] : '';
+      })
+      .filter(Boolean)
+  );
+  // 如果没有楼栋标注，则直接使用 demoTargetBuildingId
+  if (focusBuildingIds.size === 0 && demoTargetBuildingId && demoPhase >= 2 && demoPhase <= 5) {
+    focusBuildingIds.add(demoTargetBuildingId);
+  }
+
+  // 根据 demoAnnotations 推断当前步骤焦点换热站 ID（pulse=true 且 id 包含 'station' 的标注）
+  const focusStationIds = new Set<string>(
+    demoAnnotations
+      .filter(a => a.pulse && a.id.includes('station'))
+      .map(a => {
+        // 从标注 id 提取换热站字母（如 'diag-station-b' → 'S2'）
+        if (a.id.includes('-a') || a.id.endsWith('-a')) return 'S1';
+        if (a.id.includes('-b') || a.id.endsWith('-b')) return 'S2';
+        if (a.id.includes('-c') || a.id.endsWith('-c')) return 'S3';
+        return '';
+      })
+      .filter(Boolean)
+  );
+
+  return (
+    <div ref={containerRef}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      onClick={handleContainerClick}
+      style={{
+        position: "relative", width: "100%", height: "100%", overflow: "visible",
+        background: "transparent",
+        touchAction: "none",
+        cursor: "default",
+      }}>
+      <WeatherCanvas weather={weather} />
+
+      {/* Mobile reset button */}
+      {(transform.scale !== 1 || transform.tx !== 0 || transform.ty !== 0) && (
+        <button onClick={resetTransform} style={{
+          position: "absolute", bottom: 16, right: 16, zIndex: 20,
+          padding: "6px 12px", borderRadius: 8, fontSize: 11, fontWeight: 700,
+          background: "rgba(0,30,80,0.9)", border: "1px solid rgba(0,180,255,0.35)",
+          color: "#7DD3FC", cursor: "pointer",
+        }}>↺ 复位视图</button>
+      )}
+
+      <div className="mobile-map-hint">
+        👆 双指缩放 · 单指拖动 · 点击换热站/楼栋查看详情
+      </div>
+
+      <svg ref={svgRef} viewBox={`0 -${VB_Y_OFFSET} ${VW} ${VB_TOTAL_H}`}
+        preserveAspectRatio="xMidYMin meet"
+        style={{
+          position: "absolute", top: 0, left: 0, right: 0, bottom: "auto",
+          width: "100%", height: "auto",
+          zIndex: 4,
+          transform: `translate(${transform.tx}px, ${transform.ty}px) scale(${transform.scale})`,
+          transformOrigin: "center center",
+          transition: "none",
+          overflow: "visible",
+        }}>
+        <defs>
+          {/* Global glow filter */}
+          <filter id="glow-blue" x="-30%" y="-30%" width="160%" height="160%">
+            <feGaussianBlur stdDeviation="3" result="blur" />
+            <feComposite in="SourceGraphic" in2="blur" operator="over" />
+          </filter>
+          {/* Building filters: alpha-trick removes white bg, then tint+glow like heat source/station */}
+          {/* Normal: neon-cyan tint + glow, white bg transparent */}
+          <filter id="building-tint-normal" x="-30%" y="-30%" width="160%" height="160%" colorInterpolationFilters="sRGB">
+            {/* Step 1: Remove white bg + tint to deep blue */}
+            <feColorMatrix type="matrix"
+              values="0.20 0.20 0.60 0 0 0.30 0.30 0.80 0 0 0.40 0.40 1.00 0 0 -0.95 -0.95 -0.95 1 1.4" result="tinted" />
+            {/* Step 2: Neon cyan drop-shadow glow (same as heat source/station) */}
+            <feDropShadow dx="0" dy="0" stdDeviation="5" floodColor="rgba(0,220,255,0.70)" in="tinted" result="glow1" />
+            <feDropShadow dx="0" dy="0" stdDeviation="12" floodColor="rgba(0,160,255,0.35)" in="glow1" />
+          </filter>
+          {/* Selected: brighter + strong neon glow */}
+          <filter id="building-tint-selected" x="-30%" y="-30%" width="160%" height="160%" colorInterpolationFilters="sRGB">
+            <feColorMatrix type="matrix"
+              values="0.25 0.25 0.70 0 0 0.40 0.40 1.00 0 0 0.50 0.50 1.20 0 0 -0.95 -0.95 -0.95 1 1.4" result="tinted" />
+            <feDropShadow dx="0" dy="0" stdDeviation="8" floodColor="rgba(0,234,255,0.95)" in="tinted" result="glow1" />
+            <feDropShadow dx="0" dy="0" stdDeviation="20" floodColor="rgba(0,200,255,0.55)" in="glow1" />
+          </filter>
+          {/* Alert: red tint + red glow */}
+          <filter id="building-tint-alert" x="-30%" y="-30%" width="160%" height="160%" colorInterpolationFilters="sRGB">
+            <feColorMatrix type="matrix"
+              values="1.20 0.30 0.10 0 0 0.10 0.10 0.10 0 0 0.10 0.10 0.10 0 0 -0.95 -0.95 -0.95 1 1.4" result="tinted" />
+            <feDropShadow dx="0" dy="0" stdDeviation="6" floodColor="rgba(239,68,68,0.90)" in="tinted" result="glow1" />
+            <feDropShadow dx="0" dy="0" stdDeviation="14" floodColor="rgba(239,68,68,0.45)" in="glow1" />
+          </filter>
+          {/* Green done: green tint + green glow */}
+          <filter id="building-tint-green" x="-30%" y="-30%" width="160%" height="160%" colorInterpolationFilters="sRGB">
+            <feColorMatrix type="matrix"
+              values="0.10 0.10 0.10 0 0 0.80 0.80 0.50 0 0 0.20 0.20 0.20 0 0 -0.95 -0.95 -0.95 1 1.4" result="tinted" />
+            <feDropShadow dx="0" dy="0" stdDeviation="5" floodColor="rgba(34,197,94,0.85)" in="tinted" result="glow1" />
+            <feDropShadow dx="0" dy="0" stdDeviation="12" floodColor="rgba(34,197,94,0.40)" in="glow1" />
+          </filter>
+          {/* Grid pattern for zone backgrounds */}
+          <pattern id="grid-pattern" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
+            <path d="M 20 0 L 0 0 0 20" fill="none" stroke="rgba(0,180,255,0.06)" strokeWidth="0.5" />
+          </pattern>
+          {/* ClipPath for heat station - removes bottom 22% platform/托底 (objectBoundingBox) */}
+          <clipPath id="station-clip" clipPathUnits="objectBoundingBox">
+            <rect x="0" y="0" width="1" height="0.78" />
+          </clipPath>
+          {/* ClipPath for heat source - removes bottom 22% platform/托底 (objectBoundingBox) */}
+          <clipPath id="heatsrc-clip" clipPathUnits="objectBoundingBox">
+            <rect x="0" y="0" width="1" height="0.78" />
+          </clipPath>
+        </defs>
+
+        {/* Zone backgrounds removed per user request */}
+
+        {/* Zone labels removed - station labels are shown directly on station images via HoloHeatStation */}
+
+        {/* ── Pipes (rendered BEFORE buildings so buildings sit on top) ── */}
+        {/*
+          管线设计：
+          1. 竖向主干管（trunkX）贯穿整个高度
+          2. 热源横向管穿过热源中心连接到主干管
+          3. 每个换热站行：横向主管从 trunkX 延伸到最右楼栋，穿过换热站
+          4. 每栋楼：短分支管从横向主管垂直连接到楼栋底部
+        */}
+
+        {/* 1. 竖向主干管：贯穿整个高度（从最上换热站到最下换热站） */}
+        <FlowPipe
+          x1={trunkX} y1={trunkTopY}
+          x2={trunkX} y2={trunkBotY}
+          width={5} color="rgba(0,140,220,0.70)"
+          highlighted={demoPhase >= 4}
+        />
+
+        {/* 2. 热源横向管：从热源左侧穿过热源中心连接到主干管 */}
+        <FlowPipe
+          x1={srcX - 50} y1={srcY}
+          x2={trunkX} y2={srcY}
+          width={5} color="rgba(0,140,220,0.70)"
+          highlighted={demoPhase >= 4}
+        />
+        {/* 主干管延伸到热源行（热源在主干管范围内） */}
+        {srcY > trunkBotY && (
+          <FlowPipe
+            x1={trunkX} y1={trunkBotY}
+            x2={trunkX} y2={srcY}
+            width={5} color="rgba(0,140,220,0.70)"
+            highlighted={demoPhase >= 4}
+          />
+        )}
+        {srcY < trunkTopY && (
+          <FlowPipe
+            x1={trunkX} y1={srcY}
+            x2={trunkX} y2={trunkTopY}
+            width={5} color="rgba(0,140,220,0.70)"
+            highlighted={demoPhase >= 4}
+          />
+        )}
+
+        {/* 3. 每个换热站行：横向主管穿过换热站，分支连楼栋 */}
+        {STATION_CONFIGS.map((sc, zoneIdx) => {
+          const railY = RAIL_YS[zoneIdx];
+          const bldXs = ZONE_BLDG_IDS[zoneIdx].map(id => gridPos[id]?.gx ?? 0);
+          const maxBldX = Math.max(...bldXs);
+          const isHighlighted = effectiveHighlightZone === zoneIdx && demoPhase >= 4;
+
+          return (
+            <g key={`zone-pipes-${sc.id}`}>
+              {/* 横向主管：从主干管一直延伸到最右楼栋，穿过换热站（换热站图片渲染在上方） */}
+              <FlowPipe
+                x1={trunkX} y1={railY}
+                x2={maxBldX + 40} y2={railY}
+                width={3.5} color="rgba(0,140,220,0.60)"
+                highlighted={isHighlighted}
+              />
+              {/* 楼栋垂直分支管：阀门在主管上，分支管从主管向上连接楼栋底部 */}
+              {ZONE_BLDG_IDS[zoneIdx].map(id => {
+                const pos = gridPos[id];
+                if (!pos) return null;
+                const pipeColor = isHighlighted ? 'rgba(0,200,255,0.85)' : 'rgba(0,180,255,0.65)';
+                // pos.gy = railY - BRANCH_LEN（楼栋底部在主管上方）
+                // 分支管从 railY 向上画到 pos.gy
+                return (
+                  <g key={`branch-${id}`}>
+                    {/* 垂直分支管：从主管向上连接楼栋底部 */}
+                    <FlowPipe
+                      x1={pos.gx} y1={railY}
+                      x2={pos.gx} y2={pos.gy - (pos.bottomPad ?? 0)}
+                      width={2.5} color={pipeColor}
+                      highlighted={isHighlighted}
+                    />
+                    {/* 主管交接点（阀门图标由HoloBuildingIcon负责渲染，这里只画连接圆点） */}
+                    <circle cx={pos.gx} cy={railY} r={3.5}
+                      fill="rgba(0,20,60,0.9)" stroke={pipeColor} strokeWidth={1.5} />
+                  </g>
+                );
+              })}
+            </g>
+          );
+        })}
+
+        {/* ── Heat Source ── */}
+        <HoloHeatSource x={srcX} y={srcY} onClick={onSelectHeatSource} isSelected={heatSourceSelected} />
+
+        {/* ── Heat Stations ── */}
+        {STATION_CONFIGS.map((sc, zoneIdx) => {
+          const station = stations.find(s => s.id === sc.id);
+          if (!station) return null;
+          const isSel = selectedStationId === sc.id;
+          const isHighlighted = effectiveHighlightZone === zoneIdx && demoPhase >= 4;
+
+          const isStationFocused = focusStationIds.has(sc.id);
+          return (
+            <HoloHeatStation key={sc.id}
+              sx={sc.x} sy={sc.y}
+              sc={sc} station={station}
+              isSel={isSel} isHighlighted={isHighlighted}
+              isFocused={isStationFocused}
+              demoPhase={demoPhase}
+              onSelect={() => onSelectStation(station)}
+            />
+          );
+        })}
+
+        {/* ── Buildings ── */}
+        {buildings.map(b => {
+          const pos = gridPos[b.id];
+          if (!pos) return null;
+          // 找到该楼栋所属行的railY
+          const bldgZoneIdx = ZONE_BLDG_IDS.findIndex(ids => ids.includes(b.id));
+          const bldgRailY = bldgZoneIdx >= 0 ? RAIL_YS[bldgZoneIdx] : pos.gy;
+          const selectedStation = selectedStationId
+            ? stations.find(s => s.id === selectedStationId)
+            : null;
+          const isStationHighlighted = !!(selectedStation && b.stationId === selectedStation.id);
+          const isAlertTarget = b.id === demoTargetBuildingId;
+          const isExecuting = isAlertTarget && demoPhase === 4;
+          const isFocused = focusBuildingIds.has(b.id);
+          return (
+            <HoloBuildingIcon key={b.id} b={b}
+              gx={pos.gx} gy={pos.gy} railY={bldgRailY}
+              heightScale={pos.heightScale}
+              isSelected={selectedBuildingId === b.id}
+              isStationHighlighted={isStationHighlighted}
+              isAlertTarget={isAlertTarget}
+              isExecuting={isExecuting}
+              isFocused={isFocused}
+              demoPhase={demoPhase}
+              onClick={() => onSelectBuilding(b)}
+              onHover={(building, x, y) => setTooltip({ building, x, y })}
+              onLeave={() => setTooltip(null)}
+            />
+          );
+        })}
+
+        {/* ── Pipe legend ── */}
+        <g transform={`translate(${VW - 162}, ${VH - 80})`} style={{ pointerEvents: "none" }}>
+          <rect x={0} y={0} width={150} height={72} rx={10}
+            fill="rgba(0,20,60,0.80)" stroke="rgba(0,180,255,0.25)" strokeWidth={1} />
+          <text x={10} y={18} fontSize={9.5} fontWeight={700} fill="rgba(125,211,252,0.9)"
+            fontFamily="'Noto Sans SC', sans-serif">管线类型</text>
+          {[
+            { color: "rgba(0,140,220,0.8)", width: 4, label: "主管线" },
+            { color: "rgba(0,140,220,0.6)", width: 2, label: "支管线" },
+          ].map((item, i) => (
+            <g key={i} transform={`translate(10, ${28 + i * 19})`}>
+              <line x1={0} y1={5} x2={30} y2={5} stroke={item.color} strokeWidth={item.width} strokeLinecap="round" />
+              <text x={38} y={9} fontSize={9} fontWeight={600} fill="rgba(148,210,255,0.75)"
+                fontFamily="'Noto Sans SC', sans-serif">{item.label}</text>
+            </g>
+          ))}
+        </g>
+
+        {/* ── Demo Annotations ── 直接在SVG地图对应位置显示标注框 */}
+        {demoAnnotations.map(ann => {
+          const colorMap = {
+            red: { bg: "rgba(180,0,0,0.85)", border: "#EF4444", text: "#FCA5A5", dot: "#EF4444" },
+            green: { bg: "rgba(0,100,40,0.85)", border: "#22C55E", text: "#86EFAC", dot: "#22C55E" },
+            blue: { bg: "rgba(0,40,140,0.85)", border: "#3B82F6", text: "#93C5FD", dot: "#3B82F6" },
+            yellow: { bg: "rgba(120,80,0,0.85)", border: "#F59E0B", text: "#FDE68A", dot: "#F59E0B" },
+            cyan: { bg: "rgba(0,60,80,0.85)", border: "#06B6D4", text: "#A5F3FC", dot: "#06B6D4" },
+          };
+          const c = colorMap[ann.color];
+          const boxW = 140, boxH = ann.body ? 52 : 30;
+          const bx = ann.svgX - boxW / 2;
+          const by = ann.svgY - boxH - 8;
+
+          return (
+            <g key={ann.id} style={{ pointerEvents: "none" }}>
+              {/* Static dot at target position (no pulse animation) */}
+              <circle cx={ann.svgX} cy={ann.svgY} r={ann.pulse ? 6 : 4} fill={c.dot} opacity={0.9} />
+              {/* Connector line: dashed line from dot to annotation box */}
+              <line x1={ann.svgX} y1={ann.svgY - 5} x2={ann.svgX} y2={by + boxH}
+                stroke={c.border} strokeWidth={1} strokeDasharray="3 2" opacity={0.7} />
+              {/* Annotation box */}
+              <rect x={bx} y={by} width={boxW} height={boxH} rx={6}
+                fill={c.bg} stroke={c.border} strokeWidth={1.2} opacity={0.95} />
+              {/* Title */}
+              <text x={bx + 8} y={by + 14} fontSize={9} fontWeight={700} fill={c.text}
+                fontFamily="'Noto Sans SC', sans-serif">{ann.title}</text>
+              {/* Body */}
+              {ann.body && (
+                <text x={bx + 8} y={by + 30} fontSize={8} fontWeight={500} fill={c.text}
+                  fontFamily="'Noto Sans SC', sans-serif" opacity={0.85}>{ann.body}</text>
+              )}
+            </g>
+          );
+        })}
+
+        {/* ── Temperature legend ── */}
+        <g transform={`translate(${VW - 162}, 14)`} style={{ pointerEvents: "none" }}>
+          <rect x={0} y={0} width={150} height={90} rx={10}
+            fill="rgba(0,20,60,0.80)" stroke="rgba(0,180,255,0.25)" strokeWidth={1} />
+          <text x={10} y={18} fontSize={9.5} fontWeight={700} fill="rgba(125,211,252,0.9)"
+            fontFamily="'Noto Sans SC', sans-serif">温度范围</text>
+          {[
+            { color: "#EF4444", label: ">22°C" },
+            { color: "#64748B", label: "20–22°C" },
+            { color: "#3B82F6", label: "<20°C" },
+          ].map((item, i) => (
+            <g key={i} transform={`translate(10, ${28 + i * 19})`}>
+              <circle cx={6} cy={5} r={5} fill={item.color} opacity={0.9} />
+              <text x={18} y={9} fontSize={9} fontWeight={600} fill={item.color}
+                fontFamily="'Noto Sans SC', sans-serif">{item.label}</text>
+            </g>
+          ))}
+        </g>
+
+        {/* ── TOP-LEVEL TRANSPARENT HIT AREAS (最顶层透明点击区域，确保100%可点击) ── */}
+        {/* 换热站点击区域 — 右边界不超过x=420，避免覆盖楼栋区域(x=498+) */}
+        {STATION_CONFIGS.map((sc) => {
+          const station = stations.find(s => s.id === sc.id);
+          if (!station) return null;
+          const stImgW = 200, stImgH = 178;
+          const stIx = sc.x - stImgW / 2;  // stIx = 320-100 = 220
+          const stIy = sc.y - stImgH / 2;
+          // 右边界限制到x=420，避免覆盖楼栋点击区域
+          const hitX = stIx - 50;  // 170
+          const hitMaxRight = 420;  // 不超过此坐标
+          const hitW = Math.min(stImgW + 100, hitMaxRight - hitX);  // 限制宽度
+          return (
+            <rect
+              key={`hit-station-${sc.id}`}
+              x={hitX} y={stIy - 70}
+              width={hitW} height={stImgH + 120}
+              fill="rgba(0,0,0,0)"
+              style={{ cursor: "pointer", pointerEvents: "all" }}
+              onClick={(e) => { e.stopPropagation(); onSelectStation(station); }}
+            />
+          );
+        })}
+        {/* 楼栋点击区域 */}
+        {buildings.map(b => {
+          const bPos = gridPos[b.id];
+          if (!bPos) return null;
+          const bHs = bPos.heightScale ?? 1.0;
+          const bImgW = Math.round(352 * bHs);
+          const bImgH = Math.round(568 * bHs);
+          const bIx = bPos.gx - bImgW / 2;
+          const bIy = bPos.gy - bImgH;
+          return (
+            <rect
+              key={`hit-building-${b.id}`}
+              x={bIx - 30} y={bIy - 60}
+              width={bImgW + 60} height={bImgH + 100}
+              fill="rgba(0,0,0,0)"
+              style={{ cursor: "pointer", pointerEvents: "all" }}
+              onClick={(e) => { e.stopPropagation(); onSelectBuilding(b); }}
+            />
+          );
+        })}
+      </svg>
+
+      {/* Valve rotation CSS */}
+      <style>{`
+        @keyframes valve-rotate {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+
+      {/* Tooltip */}
+      {tooltip && (() => {
+        const b = tooltip.building;
+        const colors = getTempColor(b.temp);
+        const container = containerRef.current;
+        const rect = container?.getBoundingClientRect();
+        const tx = rect ? tooltip.x - rect.left + 14 : tooltip.x + 14;
+        const ty = rect ? tooltip.y - rect.top : tooltip.y;
+
+        return (
+          <div style={{
+            position: "absolute", zIndex: 20,
+            left: Math.min(tx, (rect?.width ?? 800) - 200),
+            top: Math.max(ty - 120, 8),
+            background: "rgba(2,15,45,0.96)",
+            border: "1px solid rgba(0,180,255,0.35)",
+            borderRadius: 12,
+            padding: "12px 14px",
+            minWidth: 180,
+            boxShadow: "0 8px 32px rgba(0,0,0,0.5), 0 0 20px rgba(0,120,255,0.15)",
+            pointerEvents: "none",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <span style={{ fontSize: 13, fontWeight: 800, color: "#7DD3FC" }}>{b.name}</span>
+              <div style={{ display: "flex", gap: 4 }}>
+                {b.hasMeter && (
+                  <span style={{ padding: "1px 5px", borderRadius: 3, fontSize: 8, fontWeight: 700, background: "rgba(0,60,150,0.5)", color: "#93C5FD", border: "1px solid rgba(0,150,255,0.4)" }}>📡实测</span>
+                )}
+                {b.temp < 18 && (
+                  <span style={{ padding: "1px 5px", borderRadius: 3, fontSize: 8, fontWeight: 700, background: "rgba(150,0,0,0.4)", color: "#FCA5A5", border: "1px solid rgba(239,68,68,0.5)" }}>⚠低温</span>
+                )}
+              </div>
+            </div>
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 22, fontWeight: 900, color: colors.text, marginBottom: 8 }}>
+              {b.temp.toFixed(1)}°C
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 12px" }}>
+              {[
+                { label: "楼层数", value: `${b.floors}层` },
+                { label: "朝向", value: b.orientation },
+                { label: "供暖方式", value: b.heatingType },
+                { label: "管网位置", value: b.position },
+              ].map(item => (
+                <div key={item.label}>
+                  <div style={{ fontSize: 8, color: "rgba(148,210,255,0.55)", letterSpacing: 1 }}>{item.label}</div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(200,230,255,0.9)" }}>{item.value}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ marginTop: 8, padding: "4px 8px", borderRadius: 6, background: "rgba(0,40,100,0.5)", border: "1px solid rgba(0,150,255,0.3)", fontSize: 9, color: "rgba(125,211,252,0.8)" }}>
+              点击查看楼层详情 →
+            </div>
+          </div>
+        );
+      })()}
+    </div>
+  );
+}
